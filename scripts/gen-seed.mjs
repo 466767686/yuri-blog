@@ -5,40 +5,49 @@ const API_KEY = process.env.DEEPSEEK_API_KEY;
 const OUT = 'src/content/blog';
 
 const TOPICS = [
-  { dir:'life', slug:'night-phone', title:'深夜的手机屏幕', cats:['随笔'], tags:['随笔','生活'], brief:'高三深夜，手机微光，第二天六点的闹钟。纯生活，不提游戏动漫' },
-  { dir:'life', slug:'last-hour-of-weekend', title:'周末的最后一小时', cats:['随笔'], tags:['随笔','生活'], brief:'周六下午五点放学后那点短暂自由，以及它结束时的感觉。纯生活' },
-  { dir:'life', slug:'ordinary-wednesday', title:'一个普通的周三', cats:['随笔'], tags:['随笔','生活'], brief:'一天完全重复的上学生活，没发生什么大事。纯生活' },
-  { dir:'life', slug:'morning-self-study', title:'早读', cats:['随笔'], tags:['随笔','生活'], brief:'早上六点多到校的早读，困、发呆、背不进去。纯生活' },
-  { dir:'life', slug:'rainy-way-home', title:'下雨的放学路', cats:['随笔'], tags:['随笔','生活'], brief:'下雨天的放学路上的一些观察和心情。纯生活' },
-  { dir:'life/anime', slug:'subahibi-review', title:'《素晴日》：日常下面埋着的东西', cats:['随笔','番剧'], tags:['Galgame','感想','素晴日'], brief:'对《素晴日》本身的感想（这篇主题就是这部作品）' },
-  { dir:'life/anime', slug:'atri-dear-moments', title:'《ATRI》和回不去的时间', cats:['随笔','番剧'], tags:['Galgame','感想','ATRI'], brief:'对《ATRI》本身的感想（这篇主题就是这部作品）' },
-  { dir:'tools', slug:'iphone-root-days', title:'把 iPhone 折腾到 Root 的那几天', cats:['工具'], tags:['工具','折腾','iPhone'], brief:'折腾 iPhone 的经历。纯技术，不提游戏' },
-  { dir:'tools', slug:'proxy-history', title:'我的网络代理折腾史', cats:['工具'], tags:['工具','网络','代理'], brief:'从 Quantumult X 到 Mihomo 的折腾经历。纯技术' },
-  { dir:'tools', slug:'phone-ai-agent', title:'想在手机上做一个 AI Agent', cats:['工具'], tags:['工具','AI','折腾'], brief:'想用手机做 AI Agent 的想法和尝试。纯技术' },
-  { dir:'tools', slug:'my-blog-build', title:'这个博客是怎么来的', cats:['工具'], tags:['工具','博客','前端'], brief:'搭这个博客的过程。纯技术' },
-  { dir:'note', slug:'if-life-could-save', title:'如果人生可以存档', cats:['笔记'], tags:['笔记','随想'], brief:'关于"如果人生可以存档"的胡思乱想。纯思考，不扯具体游戏作品' },
-  { dir:'note', slug:'why-music', title:'为什么音乐能让人逃出去', cats:['笔记'], tags:['笔记','音乐','随想'], brief:'音乐为什么能从现实里短暂逃出去。不提游戏' },
-  { dir:'note', slug:'tired-repeat', title:'重复的日子', cats:['笔记'], tags:['笔记','随想'], brief:'关于每天重复同样生活的感受。不提游戏或动漫' },
+  { dir:'life', slug:'night-phone', title:'深夜的手机屏幕', cats:['随笔'], tags:['随笔','生活'], brief:'高三深夜，手机屏幕的光，和第二天六点的闹钟。纯生活' },
+  { dir:'life', slug:'saturday-5pm', title:'周六下午五点', cats:['随笔'], tags:['随笔','生活'], brief:'周六下午放学后那点短暂的自由。纯生活' },
+  { dir:'life', slug:'morning-self-study', title:'早读', cats:['随笔'], tags:['随笔','生活'], brief:'早读犯困、发呆、背不进去。纯生活' },
+  { dir:'life', slug:'rainy-way-home', title:'下雨的放学路', cats:['随笔'], tags:['随笔','生活'], brief:'下雨天放学路上的观察。纯生活' },
+  { dir:'life', slug:'tired-repeat', title:'重复的日子', cats:['随笔'], tags:['随笔','生活'], brief:'每天重复同样生活的疲惫。纯生活' },
+  { dir:'life', slug:'after-exam', title:'考完试的那个下午', cats:['随笔'], tags:['随笔','生活'], brief:'考完一场试之后的松懈和空落。不要编造分数名次' },
+  { dir:'tools', slug:'proxy-story', title:'折腾网络这件事', cats:['工具'], tags:['工具','网络'], brief:'折腾网络代理的经历。只能用 Quantumult X、Mihomo/Clash' },
+  { dir:'tools', slug:'phone-broken', title:'把手机折腾坏了', cats:['工具'], tags:['工具','折腾','iPhone'], brief:'折腾手机搞坏了又救回来。不要编造具体插件名' },
+  { dir:'life/anime', slug:'subahibi', title:'《素晴日》', cats:['随笔','番剧'], tags:['Galgame','感想','素晴日'], brief:'玩完《素晴日》之后的感想' },
+  { dir:'life/anime', slug:'atri', title:'《ATRI》', cats:['随笔','番剧'], tags:['Galgame','感想','ATRI'], brief:'玩完《ATRI》之后的感想' },
 ];
 
-const SYSTEM = `你是一个中国高三学生的博客写作者，替他写博客。
+const SYSTEM = `你是一个中国高三学生的博客写作者，替他写随笔。
 
-这个学生：高三，早上6:20出门，晚上22:15结束。讨厌考试但也在乎分数。喜欢音乐。喜欢折腾手机、网络、AI、网站。
+【这个人】
+高三。早上6:20出门，晚上22:15结束，周六下午五点放学。
+讨厌考试，也怕考不好。喜欢音乐。喜欢折腾手机和网络。
 
-写作要求：
-1. 像一个真实高中生随手写的，不要"优秀作文"，不要鸡汤，不要励志。
-2. 不要过度文学化。用真实的小东西：校服、试卷、晚自习、耳机、手机电量、夜路、台灯、闹钟。
-3. 允许抱怨、疲惫、无聊、跑题、不完整的句子。结尾不要每次都升华。
-4. 偶尔可以突然哲学，但要像高中生突然想到的，然后被现实打断。
-5. 绝对不要 AI 腔：不要"作为一名高中生"，不要标准三段式，不要"首先其次最后"。
+【写作要求 - 严格遵守】
+1. 像真人随手写的日记，不像作文。允许句子短、碎、不完整。
+2. 【禁止虚构】不要编造具体信息：
+   - 地名、学校名、同学名、老师名
+   - 商品品牌、平台名、网站名
+   - 具体的软件、配置、技术方案
+   不知道就模糊处理（"某个软件""一个网站"），或干脆不提。
+3. 【禁止 AI 腔】
+   - 不要"我突然想到""这让我明白""也许这就是青春"
+   - 不要工整的排比、不要华丽的比喻
+   - 不要结尾升华、不要总结人生
+4. 多用真实的小动作小物件：手机电量、耳机、校服、试卷、台灯、闹钟。
+5. 可以抱怨、发呆、跑题、自嘲。允许什么都没解决。
+6. 长度 150-350 字，不要长。
+7. 输出格式：第一行标题（不加任何标记），第二行开始正文。
 
-【最重要】每篇文章只写它自己的主题。
-不要强行提及 galgame、二次元作品、或者其他和当前主题无关的爱好。
-除非文章主题本身就是关于它们（比如标题就是某部作品），否则全文不应出现这类内容。
-生活类文章就老老实实写生活，技术类文章就老老实实写技术。
+【技术类文章】
+只准用这些真实的工具：iPhone 折腾/越狱/Root、Quantumult X、Mihomo(Clash) 这类网络代理。
+不确定的一律不写。
 
-6. 长度 200-450 字。
-7. 输出格式：第一行是标题（不加 # 或 **），从第二行开始正文。不要任何解释。`;
+【绝对禁止写】
+- 用什么搭的博客（Hexo/Astro/WordPress 一律不提）
+- 域名在哪买、多少钱、什么后缀
+- 服务器、云服务商、nginx
+- 任何你可能编造的"事实"`;
 
 function fm(t, title){ return ['---', 'title: ' + JSON.stringify(title), 'link: ' + t.slug, 'date: ' + t.date + ' 20:00:00', 'catalog: true', 'tags:', ...t.tags.map(x=>'  - '+x), 'categories:', ...t.cats.map(x=>'  - '+x), '---'].join('\n'); }
 function daysAgo(n){ const d=new Date(Date.now()-n*86400000); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
