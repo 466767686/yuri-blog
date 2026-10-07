@@ -1,6 +1,17 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "api/editor/og.ts": { "maxDuration": 15 }
-  }
+  "services": {
+    "app": {
+      "root": ".",
+      "framework": "astro"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "app"
+      }
+    }
+  ]
 }
