@@ -99,3 +99,17 @@ html:not([data-motion='reduced']) .cover-copy h1 {
   }
   .cover-copy h1 { animation: none; }
 }
+
+/* ---------- 8. 禁用滚动浮现（用户反馈有 bug）----------
+   原因：元素初始 opacity:0，依赖 IntersectionObserver 触发显示；
+   一旦触发失败（元素不进视口 / JS 异常），内容会一直不可见。
+   处理：让它们始终可见，并关掉浮现动画。 */
+html:is([data-motion='lively'], [data-motion='subtle']) [data-reveal='pending'] {
+  opacity: 1 !important;
+}
+html:is([data-motion='lively'], [data-motion='subtle']) [data-reveal='in'] {
+  animation: none !important;
+}
+html[data-motion='lively'] .motion-reveal-lively > [data-reveal='in'] {
+  animation: none !important;
+}
