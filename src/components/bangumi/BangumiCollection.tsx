@@ -11,6 +11,7 @@ import type { TranslationKey } from '@/i18n/types';
 import { ITEMS_PER_PAGE, SUBJECT_TYPE_KEYS, type SubjectTypeKey } from '@/lib/bangumi/constants';
 import type { BangumiCollectionType } from '@/types/bangumi';
 import { BangumiCard } from './BangumiCard';
+import { SteamSection } from './SteamSection';
 
 const TAB_LABEL_KEYS: Record<SubjectTypeKey, TranslationKey> = {
   anime: 'bangumi.anime',
@@ -176,6 +177,7 @@ export function BangumiCollection({ userId }: BangumiCollectionProps) {
           </div>
         </div>
 
+        {activeTab === 'game' && <SteamSection />}
         <AnimatePresence mode="popLayout">
           <m.div
             key={`${activeTab}-${activeFilter}-${currentPage}`}
