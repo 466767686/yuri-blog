@@ -84,6 +84,7 @@ const MIRROR_EXEMPT = new Set([
   'api/admin',
   'api/cron/daily',
   'api/steam',
+  'api/chat',
 ]);
 
 const toRoute = (moduleKey: string) => moduleKey.replace('/src/pages/', '').replace(/\.(astro|md|mdx|ts)$/, '');

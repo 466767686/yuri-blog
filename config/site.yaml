@@ -54,11 +54,13 @@ i18n:
       label: 中文
     - code: en
       label: English
-      # enabled: false  # 内容存在但暂时禁用（保留内容但不生成路由）
+      enabled: false
     - code: ja
       label: 日本語
+      enabled: false
     - code: ko
       label: 한국어
+      enabled: false
 
 # =============================================================================
 # Category Map

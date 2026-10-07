@@ -46,15 +46,41 @@ async function github(path: string, opts: any = {}) {
   return data;
 }
 
+async function getRecentTopics(limit = 7) {
+  try {
+    const tree = await github('src/content/blog/life');
+    const dailies = (Array.isArray(tree) ? tree : [])
+      .filter((f: any) => f.name.startsWith('daily-') && f.name.endsWith('.md'))
+      .sort((a: any, b: any) => b.name.localeCompare(a.name))
+      .slice(0, limit);
+    const titles: string[] = [];
+    for (const file of dailies) {
+      try {
+        const data = await github(file.path);
+        const text = Buffer.from(data.content || '', 'base64').toString('utf8');
+        const m = text.match(/^title:\s*"?([^"\n]+)"?/m);
+        if (m) titles.push(m[1].trim());
+      } catch {}
+    }
+    return titles;
+  } catch {
+    return [];
+  }
+}
+
 async function generateEssay() {
   const now = beijingNow();
   const dateInfo = `今天的日期是 ${now.y}年${now.m}月${now.day}日，星期${now.weekday}。`;
+  const recentTopics = await getRecentTopics(7);
+  const avoidHint = recentTopics.length
+    ? `\n\n【最近几天写过的标题，请避开这些主题、意象和表达方式】\n${recentTopics.map((t) => '- ' + t).join('\n')}`
+    : '';
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${import.meta.env.DEEPSEEK_API_KEY}` },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      messages: [{ role: 'user', content: dateInfo + '\n\n' + DAILY_PROMPT }],
+      messages: [{ role: 'user', content: dateInfo + avoidHint + '\n\n' + DAILY_PROMPT }],
       temperature: 1.15,
       max_tokens: 900,
     }),
