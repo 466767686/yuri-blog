@@ -14,7 +14,7 @@
     "generate:summaries": "npx tsx src/scripts/generateSummaries.ts",
     "generate:summaries:force": "npx tsx src/scripts/generateSummaries.ts --force",
     "generate:all": "npm run generate:lqips && npm run generate:summaries && npm run generate:similarities",
-    "build": "pnpm koharu migrate --check && astro build",
+    "build": "pnpm koharu migrate --check && (pnpm generate:summaries || true) && astro build",
     "preview": "astro preview",
     "astro": "astro",
     "check": "astro check",
