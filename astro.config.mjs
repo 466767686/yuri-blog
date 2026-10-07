@@ -256,12 +256,7 @@ export default defineConfig({
     robotsTxt(robotsConfig || {}),
     ...(momentsConfig.enabled ? [momentsRoutes(momentsConfig)] : []),
   ],
-  ...(momentsConfig.enabled
-    ? {
-        adapter: node({ mode: 'standalone' }),
-        cache: { provider: memoryCache({ max: 1000 }) },
-      }
-    : {}),
+  adapter: node({ mode: 'standalone' }),
   devToolbar: {
     enabled: true,
   },
