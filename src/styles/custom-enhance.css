@@ -1,0 +1,101 @@
+/* ==========================================================================
+   Yuri 的视觉增强层
+   目的：在不动主题原文件的前提下，追加毛玻璃质感与细腻动效
+   原则：只用 backdrop-filter / transform / opacity，不改变布局
+   ========================================================================== */
+
+/* ---------- 1. 通用玻璃质感工具 ---------- */
+@utility glass-panel {
+  background-color: color-mix(in oklab, hsl(var(--card) / 0.72), transparent);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+}
+
+/* ---------- 2. 首页文章列表：悬停抬升 + 玻璃高光 ---------- */
+@media (hover: hover) {
+  .post-row {
+    transition:
+      transform 340ms var(--ease-out-quart),
+      background-color 340ms var(--ease-out-quart),
+      box-shadow 340ms var(--ease-out-quart);
+    will-change: transform;
+  }
+  .post-row:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 30px -14px hsl(var(--primary) / 0.4);
+  }
+  /* 悬停时左侧出现一道细光条 */
+  .post-row::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 12%;
+    bottom: 12%;
+    width: 2px;
+    border-radius: 2px;
+    background: linear-gradient(to bottom, transparent, hsl(var(--primary)), transparent);
+    opacity: 0;
+    transition: opacity 300ms var(--ease-out-quart);
+    pointer-events: none;
+  }
+  .post-row:hover::after { opacity: 0.85; }
+}
+
+/* ---------- 3. 侧栏卡片：毛玻璃 ---------- */
+.page-home-sider .shadow-card,
+.page-home-sider .shadow-box,
+.direct-link-card,
+.sider-card {
+  backdrop-filter: blur(14px) saturate(145%);
+  -webkit-backdrop-filter: blur(14px) saturate(145%);
+}
+
+/* ---------- 4. 正文图片：悬停微缩放 + 柔和投影 ---------- */
+.post-content img,
+.markdown-body img {
+  transition:
+    transform 520ms var(--ease-out-quart),
+    box-shadow 520ms var(--ease-out-quart);
+}
+.post-content img:hover,
+.markdown-body img:hover {
+  transform: scale(1.012);
+  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.32);
+}
+
+/* ---------- 5. 标签 / 分类：悬停微动 ---------- */
+.post-row-category,
+.tag-cloud a,
+a[href*='/tags/'] {
+  transition:
+    transform 220ms var(--ease-out-quart),
+    background-color 220ms var(--ease-out-quart),
+    color 220ms var(--ease-out-quart);
+}
+.post-row-category:hover,
+.tag-cloud a:hover,
+a[href*='/tags/']:hover {
+  transform: translateY(-1.5px);
+}
+
+/* ---------- 6. 首页 banner 文字：柔和的呼吸光 ---------- */
+@keyframes gentle-glow {
+  0%, 100% { text-shadow: 0 0.2rem 0.3rem rgba(0, 0, 0, 0.45); }
+  50%      { text-shadow: 0 0.2rem 0.3rem rgba(0, 0, 0, 0.45), 0 0 22px rgba(255, 255, 255, 0.35); }
+}
+html:not([data-motion='reduced']) .cover-copy h1 {
+  animation: gentle-glow 5.5s ease-in-out infinite;
+}
+
+/* ---------- 7. 减少动效偏好：全部关掉 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .post-row:hover,
+  .post-content img:hover,
+  .markdown-body img:hover,
+  .post-row-category:hover,
+  .tag-cloud a:hover,
+  a[href*='/tags/']:hover {
+    transform: none;
+  }
+  .cover-copy h1 { animation: none; }
+}
