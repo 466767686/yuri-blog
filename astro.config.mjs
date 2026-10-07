@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { unified } from '@astrojs/markdown-remark';
-import node from '@astrojs/node';
+import vercel from '@astrojs/vercel';
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
 import yaml from '@rollup/plugin-yaml';
@@ -256,7 +256,7 @@ export default defineConfig({
     robotsTxt(robotsConfig || {}),
     ...(momentsConfig.enabled ? [momentsRoutes(momentsConfig)] : []),
   ],
-  adapter: node({ mode: 'standalone' }),
+  adapter: vercel(),
   devToolbar: {
     enabled: true,
   },
