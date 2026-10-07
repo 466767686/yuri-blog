@@ -66,6 +66,7 @@ async function generateEssay() {
   const title = lines[0]
     .replace(/^#+\s*/, '')
     .replace(/^标题[:：]\s*/, '')
+    .replace(/\*\*/g, '')
     .trim();
   const body = lines.slice(1).join('\n').trim();
   if (!title || !body) throw new Error('AI 输出格式异常');
@@ -92,6 +93,10 @@ export async function GET({ request }: { request: Request }) {
       '---',
     ].join('\n');
     const content = fm + '\n' + body + '\n';
+    try {
+      await github(path);
+      return json({ ok: false, error: '今天已生成过，跳过' }, 409);
+    } catch {}
     const data = await github(path, {
       method: 'PUT',
       body: JSON.stringify({
