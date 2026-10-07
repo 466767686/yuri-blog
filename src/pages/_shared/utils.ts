@@ -82,6 +82,7 @@ const MIRROR_EXEMPT = new Set([
   'editor/index',
   'editor/preview',
   'api/admin',
+  'api/cron/daily',
 ]);
 
 const toRoute = (moduleKey: string) => moduleKey.replace('/src/pages/', '').replace(/\.(astro|md|mdx|ts)$/, '');
