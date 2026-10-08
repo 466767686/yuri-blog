@@ -121,3 +121,15 @@ html[data-motion='lively'] .motion-reveal-lively > [data-reveal='in'] {
 .cover-copy {
   --rise-blur: 0px !important;
 }
+
+/* ---------- 10. 去掉首页 banner 的入场动画（用户要求直接显示）----------
+   之前只把模糊归零，但 rise + fade 动画还在（用户觉得太慢）。
+   这里直接禁用 .cover-copy 内所有 .motion-rise 的动画，
+   让标题/副标题像普通文字一样立即显示。 */
+html:is([data-motion='lively'], [data-motion='subtle']) .cover-copy .motion-rise {
+  animation: none !important;
+  animation-delay: 0ms !important;
+  opacity: 1 !important;
+  translate: none !important;
+  filter: none !important;
+}
