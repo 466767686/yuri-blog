@@ -1,92 +1,192 @@
 /* ==========================================================================
-   Yuri 的视觉增强层
+   Yuri 的视觉增强层 —— 动效丰富化
 
-   优化原则（v2 · 流畅优先）：
-     1. 动画只用合成层属性（transform / translate / opacity / scale）。
-        box-shadow、text-shadow、backdrop-filter 会触发逐帧重绘或重新取景，
-        元素一多、区域一大就掉帧，所以不再拿它们做过渡。
-     2. 不常驻 will-change。列表项数量多时，长期占用合成层内存反而更卡；
-        现代浏览器对 transform 过渡本来就会自动提升图层。
-     3. 不叠加主题已经做过的动效。主题的文章列表本身就有「花瓣滑入 + 背景变色」，
-        再压一层「整行抬升 + 投影 + 左侧光条」会让三组不同时长的动画一起播，
-        观感更碎、更慢，也让每帧要做的事变多。主题做过的，这里不再重复。
-     4. hover 动效只在真鼠标设备生效。触摸屏上 :hover 点完不释放，
-        是手机上「动效卡住不动」的常见来源。
+   目标：动效要「多」，但不能「重」。
+
+   两条硬规则：
+     ① 位移 / 缩放一律用 translate、scale 独立属性。它们由合成器处理，
+        不触发布局，也不触发重绘。
+     ② 投影的变化不用 box-shadow 过渡，改用「透明伪元素 + opacity」。
+        伪元素自身没有背景色、只负责画阴影，改它的 opacity 同样只走
+        合成阶段。这是让每张卡片都带浮起投影还能满帧的关键。
+
+   另外：
+     - hover 动效只限定鼠标设备；触摸屏上 :hover 点完不释放会「卡住」。
+     - 位移量乘主题的 --motion-travel，subtle 档自动减半。
+     - data-motion="reduced" 或系统「减少动态效果」时全部关闭。
+     - 只补主题没做的：.post-row 已有花瓣滑入、.bangumi-card 已有 poster
+       抬升 + 封面缩放，这里都不重复叠加。
    ========================================================================== */
 
-/* ---------- 1. 正文图片：悬停微缩放（仅鼠标设备） ---------- */
+/* ---------- 1. 首页文章列表：抬升 + 浮起投影 ----------
+   主题原本是「花瓣滑入 + 背景变色」。这里补上整行抬升，时长与主题花瓣
+   (260ms) 对齐，避免几组动画节奏互相打架。投影交给 ::after 只过渡 opacity。 */
 @media (hover: hover) and (pointer: fine) {
-  .post-content img,
-  .markdown-body img {
-    transition: transform var(--dur-slow) var(--ease-out-expo);
+  html:not([data-motion='reduced']) .post-row {
+    transition:
+      background-color 160ms var(--ease-out-quart),
+      translate var(--dur-base) var(--ease-out-expo);
+  }
+
+  html:not([data-motion='reduced']) .post-row::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow:
+      0 10px 26px -13px hsl(var(--primary) / 0.45),
+      inset 0 0 0 1px hsl(var(--primary) / 0.3);
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out-quart);
+    pointer-events: none;
+  }
+
+  html:not([data-motion='reduced']) .post-row:hover {
+    translate: 0 calc(-3px * var(--motion-travel));
+  }
+
+  html:not([data-motion='reduced']) .post-row:hover::after {
+    opacity: 1;
+  }
+}
+
+/* ---------- 2. 友链卡片：抬升 + 浮起投影 + 箭头滑出 ----------
+   主题已有背景色与描边的 240ms 过渡，这里合并进 transition 而不是替换，
+   否则会打掉原有动效。 */
+@media (hover: hover) and (pointer: fine) {
+  html:not([data-motion='reduced']) .friend-card {
+    transition:
+      background-color 240ms ease,
+      box-shadow 240ms ease,
+      translate var(--dur-base) var(--ease-out-expo);
+  }
+
+  html:not([data-motion='reduced']) .friend-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: 0 14px 30px -14px hsl(var(--primary) / 0.4);
+    opacity: 0;
+    transition: opacity var(--dur-base) var(--ease-out-quart);
+    pointer-events: none;
+  }
+
+  html:not([data-motion='reduced']) .friend-card:hover {
+    translate: 0 calc(-3px * var(--motion-travel));
+  }
+
+  html:not([data-motion='reduced']) .friend-card:hover::after {
+    opacity: 1;
+  }
+
+  html:not([data-motion='reduced']) .friend-card .friend-arrow {
+    transition:
+      translate var(--dur-base) var(--ease-out-expo),
+      opacity var(--dur-base) var(--ease-out-quart);
+  }
+
+  html:not([data-motion='reduced']) .friend-card:hover .friend-arrow {
+    translate: calc(3px * var(--motion-travel)) calc(-3px * var(--motion-travel));
+  }
+}
+
+/* ---------- 3. 正文图片：微放大 + 提亮 ----------
+   两者都在合成阶段完成，不会重排文字。 */
+@media (hover: hover) and (pointer: fine) {
+  html:not([data-motion='reduced']) .post-content img,
+  html:not([data-motion='reduced']) .markdown-body img {
+    transition:
+      transform var(--dur-slow) var(--ease-out-expo),
+      filter var(--dur-slow) var(--ease-out-quart);
     backface-visibility: hidden;
   }
 
-  .post-content img:hover,
-  .markdown-body img:hover {
+  html:not([data-motion='reduced']) .post-content img:hover,
+  html:not([data-motion='reduced']) .markdown-body img:hover {
     transform: scale(1.015);
+    filter: brightness(1.06) saturate(1.04);
   }
 }
 
-/* ---------- 2. 标签 / 分类：颜色反馈（所有设备） ---------- */
-.post-row-category,
-.tag-cloud a,
-a[href*='/tags/'] {
-  transition:
-    color var(--dur-fast) var(--ease-out-quart),
-    background-color var(--dur-fast) var(--ease-out-quart);
-}
-
-/* ---------- 3. 标签 / 分类：悬停微动（仅鼠标设备） ----------
-   用独立的 translate 属性而非 transform，
-   以免和主题自己可能设置的 transform 互相覆盖。 */
+/* ---------- 4. 标签 / 分类：抬升 + 微放大 ----------
+   合并主题原有的颜色过渡，不覆盖。 */
 @media (hover: hover) and (pointer: fine) {
-  .post-row-category,
-  .tag-cloud a,
-  a[href*='/tags/'] {
+  html:not([data-motion='reduced']) .index-tag,
+  html:not([data-motion='reduced']) .tag-cloud a,
+  html:not([data-motion='reduced']) .post-row-category,
+  html:not([data-motion='reduced']) a[href*='/tags/'] {
     transition:
+      color 160ms var(--ease-out-quart),
+      background-color 160ms var(--ease-out-quart),
       translate var(--dur-fast) var(--ease-out-expo),
-      color var(--dur-fast) var(--ease-out-quart),
-      background-color var(--dur-fast) var(--ease-out-quart);
+      scale var(--dur-fast) var(--ease-out-expo);
   }
 
-  .post-row-category:hover,
-  .tag-cloud a:hover,
-  a[href*='/tags/']:hover {
-    translate: 0 -1.5px;
+  html:not([data-motion='reduced']) .index-tag:hover,
+  html:not([data-motion='reduced']) .tag-cloud a:hover,
+  html:not([data-motion='reduced']) .post-row-category:hover,
+  html:not([data-motion='reduced']) a[href*='/tags/']:hover {
+    translate: 0 calc(-2px * var(--motion-travel));
+    scale: 1.05;
   }
 }
 
-/* ---------- 4. 触摸设备：清掉粘滞 hover ---------- */
+/* ---------- 5. 触摸设备：清掉粘滞 hover ----------
+   手机上 :hover 点完不释放，会让上面这些位移一直卡在浮起状态。 */
 @media (hover: none) {
+  .post-row:hover,
+  .friend-card:hover,
+  .friend-card:hover .friend-arrow,
+  .index-tag:hover,
+  .tag-cloud a:hover,
+  .post-row-category:hover,
+  a[href*='/tags/']:hover {
+    translate: none;
+    scale: none;
+  }
+
   .post-content img:hover,
   .markdown-body img:hover {
     transform: none;
+    filter: none;
   }
 
-  .post-row-category:hover,
-  .tag-cloud a:hover,
-  a[href*='/tags/']:hover {
-    translate: none;
+  .post-row:hover::after,
+  .friend-card:hover::after {
+    opacity: 0;
   }
 }
 
-/* ---------- 5. 减少动效偏好：全部关掉 ---------- */
+/* ---------- 6. 减少动态效果：全部关掉 ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .post-content img:hover,
-  .markdown-body img:hover,
-  .post-row-category:hover,
+  .post-row:hover,
+  .friend-card:hover,
+  .friend-card:hover .friend-arrow,
+  .index-tag:hover,
   .tag-cloud a:hover,
+  .post-row-category:hover,
   a[href*='/tags/']:hover {
-    transform: none;
     translate: none;
+    scale: none;
+  }
+
+  .post-content img:hover,
+  .markdown-body img:hover {
+    transform: none;
+    filter: none;
+  }
+
+  .post-row:hover::after,
+  .friend-card:hover::after {
+    opacity: 0;
   }
 }
 
-/* ---------- 6. 禁用滚动浮现（用户反馈有 bug）----------
-   原因：元素初始 opacity:0，依赖 IntersectionObserver 触发显示；
+/* ---------- 7. 禁用滚动浮现的 JS 实现（用户反馈有 bug）----------
+   主题的元素初始 opacity:0，依赖 IntersectionObserver 触发显示；
    一旦触发失败（元素不进视口 / JS 异常），内容会一直不可见。
-   处理：让它们始终可见，并关掉浮现动画。 */
+   这里让它们始终可见。 */
 html:is([data-motion='lively'], [data-motion='subtle']) [data-reveal='pending'] {
   opacity: 1 !important;
 }
@@ -97,14 +197,12 @@ html[data-motion='lively'] .motion-reveal-lively > [data-reveal='in'] {
   animation: none !important;
 }
 
-/* ---------- 7. 去掉首页标题的「模糊淡入」（用户反馈有 bug）----------
-   主题在 cover.css 给 .cover-copy 设了 --rise-blur: 10px，
-   配合 motion-rise-focus 做「模糊→清晰」入场。这里把模糊归零。 */
+/* ---------- 8. 去掉首页标题的「模糊淡入」（用户反馈有 bug）---------- */
 .cover-copy {
   --rise-blur: 0px !important;
 }
 
-/* ---------- 8. 去掉首页 banner 的入场动画（用户要求直接显示）---------- */
+/* ---------- 9. 去掉首页 banner 的入场动画（用户要求直接显示）---------- */
 html:is([data-motion='lively'], [data-motion='subtle']) .cover-copy .motion-rise {
   animation: none !important;
   animation-delay: 0ms !important;
