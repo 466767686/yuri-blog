@@ -210,3 +210,34 @@ html:is([data-motion='lively'], [data-motion='subtle']) .cover-copy .motion-rise
   translate: none !important;
   filter: none !important;
 }
+
+/* ---------- 10. 修复：切页时移动端抽屉侧栏闪现 ----------
+
+   抽屉在手机断点（≤992px）下是 display:flex，并不是隐藏，只靠
+   translate: calc(-100% - 3rem) 推到屏幕外，所以它始终留在渲染树里。
+
+   而 motion.css 有一条全局规则：
+       ::view-transition-group(*) { animation-duration: 520ms }
+   它给所有带 view-transition-name 的元素都挂了形变过渡。于是点击文章 /
+   退出文章时，浏览器把这个「躺在屏幕外的抽屉」也当成共享元素，抓快照
+   并播放 520ms 的 morph —— 看起来就是侧栏跳出来又缩回去。
+
+   抽屉是覆盖层，本来就不该跨页形变，直接把它从切换动画里摘掉。 */
+::view-transition-group(page-home-sider-drawer) {
+  animation: none;
+  display: none;
+}
+
+::view-transition-old(page-home-sider-drawer),
+::view-transition-new(page-home-sider-drawer) {
+  animation: none;
+}
+
+/* 兜底：切换进行中，若抽屉处于关闭状态，就直接钉在屏幕外且不播放过渡。
+   避免新页面首帧 width 尚未解析时，translate 的 -100% 退化成 0
+   （那样抽屉只会左移 3rem，大半个还在屏幕里）。 */
+html[data-astro-transition] .drawer-sheet:not([data-state='open']) {
+  transition: none !important;
+  translate: calc(-100% - 3rem) 0 !important;
+  visibility: hidden !important;
+}
