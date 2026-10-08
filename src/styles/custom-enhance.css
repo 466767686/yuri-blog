@@ -1,106 +1,89 @@
 /* ==========================================================================
    Yuri 的视觉增强层
-   目的：在不动主题原文件的前提下，追加毛玻璃质感与细腻动效
-   原则：只用 backdrop-filter / transform / opacity，不改变布局
+
+   优化原则（v2 · 流畅优先）：
+     1. 动画只用合成层属性（transform / translate / opacity / scale）。
+        box-shadow、text-shadow、backdrop-filter 会触发逐帧重绘或重新取景，
+        元素一多、区域一大就掉帧，所以不再拿它们做过渡。
+     2. 不常驻 will-change。列表项数量多时，长期占用合成层内存反而更卡；
+        现代浏览器对 transform 过渡本来就会自动提升图层。
+     3. 不叠加主题已经做过的动效。主题的文章列表本身就有「花瓣滑入 + 背景变色」，
+        再压一层「整行抬升 + 投影 + 左侧光条」会让三组不同时长的动画一起播，
+        观感更碎、更慢，也让每帧要做的事变多。主题做过的，这里不再重复。
+     4. hover 动效只在真鼠标设备生效。触摸屏上 :hover 点完不释放，
+        是手机上「动效卡住不动」的常见来源。
    ========================================================================== */
 
-/* ---------- 1. 通用玻璃质感工具 ---------- */
-@utility glass-panel {
-  background-color: color-mix(in oklab, hsl(var(--card) / 0.72), transparent);
-  backdrop-filter: blur(16px) saturate(150%);
-  -webkit-backdrop-filter: blur(16px) saturate(150%);
-}
-
-/* ---------- 2. 首页文章列表：悬停抬升 + 玻璃高光 ---------- */
-@media (hover: hover) {
-  .post-row {
-    transition:
-      transform 340ms var(--ease-out-quart),
-      background-color 340ms var(--ease-out-quart),
-      box-shadow 340ms var(--ease-out-quart);
-    will-change: transform;
+/* ---------- 1. 正文图片：悬停微缩放（仅鼠标设备） ---------- */
+@media (hover: hover) and (pointer: fine) {
+  .post-content img,
+  .markdown-body img {
+    transition: transform var(--dur-slow) var(--ease-out-expo);
+    backface-visibility: hidden;
   }
-  .post-row:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 30px -14px hsl(var(--primary) / 0.4);
+
+  .post-content img:hover,
+  .markdown-body img:hover {
+    transform: scale(1.015);
   }
-  /* 悬停时左侧出现一道细光条 */
-  .post-row::after {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 12%;
-    bottom: 12%;
-    width: 2px;
-    border-radius: 2px;
-    background: linear-gradient(to bottom, transparent, hsl(var(--primary)), transparent);
-    opacity: 0;
-    transition: opacity 300ms var(--ease-out-quart);
-    pointer-events: none;
-  }
-  .post-row:hover::after { opacity: 0.85; }
 }
 
-/* ---------- 3. 侧栏卡片：毛玻璃 ---------- */
-.page-home-sider .shadow-card,
-.page-home-sider .shadow-box,
-.direct-link-card,
-.sider-card {
-  backdrop-filter: blur(14px) saturate(145%);
-  -webkit-backdrop-filter: blur(14px) saturate(145%);
-}
-
-/* ---------- 4. 正文图片：悬停微缩放 + 柔和投影 ---------- */
-.post-content img,
-.markdown-body img {
-  transition:
-    transform 520ms var(--ease-out-quart),
-    box-shadow 520ms var(--ease-out-quart);
-}
-.post-content img:hover,
-.markdown-body img:hover {
-  transform: scale(1.012);
-  box-shadow: 0 16px 40px -18px rgba(0, 0, 0, 0.32);
-}
-
-/* ---------- 5. 标签 / 分类：悬停微动 ---------- */
+/* ---------- 2. 标签 / 分类：颜色反馈（所有设备） ---------- */
 .post-row-category,
 .tag-cloud a,
 a[href*='/tags/'] {
   transition:
-    transform 220ms var(--ease-out-quart),
-    background-color 220ms var(--ease-out-quart),
-    color 220ms var(--ease-out-quart);
-}
-.post-row-category:hover,
-.tag-cloud a:hover,
-a[href*='/tags/']:hover {
-  transform: translateY(-1.5px);
+    color var(--dur-fast) var(--ease-out-quart),
+    background-color var(--dur-fast) var(--ease-out-quart);
 }
 
-/* ---------- 6. 首页 banner 文字：柔和的呼吸光 ---------- */
-@keyframes gentle-glow {
-  0%, 100% { text-shadow: 0 0.2rem 0.3rem rgba(0, 0, 0, 0.45); }
-  50%      { text-shadow: 0 0.2rem 0.3rem rgba(0, 0, 0, 0.45), 0 0 22px rgba(255, 255, 255, 0.35); }
-}
-html:not([data-motion='reduced']) .cover-copy h1 {
-  animation: gentle-glow 5.5s ease-in-out infinite;
+/* ---------- 3. 标签 / 分类：悬停微动（仅鼠标设备） ----------
+   用独立的 translate 属性而非 transform，
+   以免和主题自己可能设置的 transform 互相覆盖。 */
+@media (hover: hover) and (pointer: fine) {
+  .post-row-category,
+  .tag-cloud a,
+  a[href*='/tags/'] {
+    transition:
+      translate var(--dur-fast) var(--ease-out-expo),
+      color var(--dur-fast) var(--ease-out-quart),
+      background-color var(--dur-fast) var(--ease-out-quart);
+  }
+
+  .post-row-category:hover,
+  .tag-cloud a:hover,
+  a[href*='/tags/']:hover {
+    translate: 0 -1.5px;
+  }
 }
 
-/* ---------- 7. 减少动效偏好：全部关掉 ---------- */
+/* ---------- 4. 触摸设备：清掉粘滞 hover ---------- */
+@media (hover: none) {
+  .post-content img:hover,
+  .markdown-body img:hover {
+    transform: none;
+  }
+
+  .post-row-category:hover,
+  .tag-cloud a:hover,
+  a[href*='/tags/']:hover {
+    translate: none;
+  }
+}
+
+/* ---------- 5. 减少动效偏好：全部关掉 ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .post-row:hover,
   .post-content img:hover,
   .markdown-body img:hover,
   .post-row-category:hover,
   .tag-cloud a:hover,
   a[href*='/tags/']:hover {
     transform: none;
+    translate: none;
   }
-  .cover-copy h1 { animation: none; }
 }
 
-/* ---------- 8. 禁用滚动浮现（用户反馈有 bug）----------
+/* ---------- 6. 禁用滚动浮现（用户反馈有 bug）----------
    原因：元素初始 opacity:0，依赖 IntersectionObserver 触发显示；
    一旦触发失败（元素不进视口 / JS 异常），内容会一直不可见。
    处理：让它们始终可见，并关掉浮现动画。 */
@@ -114,18 +97,14 @@ html[data-motion='lively'] .motion-reveal-lively > [data-reveal='in'] {
   animation: none !important;
 }
 
-/* ---------- 9. 去掉首页标题的「模糊淡入」（用户反馈有 bug）----------
+/* ---------- 7. 去掉首页标题的「模糊淡入」（用户反馈有 bug）----------
    主题在 cover.css 给 .cover-copy 设了 --rise-blur: 10px，
-   配合 motion-rise-focus 做「模糊→清晰」入场。这里把模糊归零，
-   只保留温和的上浮淡入，避免模糊导致的渲染问题。 */
+   配合 motion-rise-focus 做「模糊→清晰」入场。这里把模糊归零。 */
 .cover-copy {
   --rise-blur: 0px !important;
 }
 
-/* ---------- 10. 去掉首页 banner 的入场动画（用户要求直接显示）----------
-   之前只把模糊归零，但 rise + fade 动画还在（用户觉得太慢）。
-   这里直接禁用 .cover-copy 内所有 .motion-rise 的动画，
-   让标题/副标题像普通文字一样立即显示。 */
+/* ---------- 8. 去掉首页 banner 的入场动画（用户要求直接显示）---------- */
 html:is([data-motion='lively'], [data-motion='subtle']) .cover-copy .motion-rise {
   animation: none !important;
   animation-delay: 0ms !important;
