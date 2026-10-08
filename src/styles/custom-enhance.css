@@ -113,3 +113,11 @@ html:is([data-motion='lively'], [data-motion='subtle']) [data-reveal='in'] {
 html[data-motion='lively'] .motion-reveal-lively > [data-reveal='in'] {
   animation: none !important;
 }
+
+/* ---------- 9. 去掉首页标题的「模糊淡入」（用户反馈有 bug）----------
+   主题在 cover.css 给 .cover-copy 设了 --rise-blur: 10px，
+   配合 motion-rise-focus 做「模糊→清晰」入场。这里把模糊归零，
+   只保留温和的上浮淡入，避免模糊导致的渲染问题。 */
+.cover-copy {
+  --rise-blur: 0px !important;
+}
