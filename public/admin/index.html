@@ -161,6 +161,73 @@ input,select,textarea{font:inherit;color:inherit}
 @keyframes sp{to{transform:rotate(360deg)}}
 .drop{outline:2px dashed var(--brand);outline-offset:-8px}
 </style>
+<style>
+/* ── 手机端：列表 / 编辑 拆成两个满屏视图 ──
+   原先手机上仍是桌面布局（308px 侧栏 + 编辑器并排），
+   溢出部分被 overflow:hidden 直接裁掉，这就是「显示不全」。 */
+@media (max-width: 900px) {
+  .app { display: block; }
+  .side {
+    position: absolute; inset: 0;
+    width: 100%; flex: none; z-index: 2;
+    border-right: none;
+  }
+  .main { position: absolute; inset: 0; z-index: 3; }
+  .app[data-view='list'] .main { display: none; }
+  .app[data-view='edit'] .side { display: none; }
+
+  .side-head { padding: 12px; gap: 8px; }
+  .side-list { padding: 6px 8px 24px; }
+  .item { padding: 13px 12px; }
+  .item-t { font-size: 15px; }
+
+  .main-head {
+    padding: 8px 12px;
+    padding-top: calc(8px + env(safe-area-inset-top));
+    gap: 6px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .main-head::-webkit-scrollbar { display: none; }
+  .main-head .stat { display: none; }
+  .main-head .grow { flex: 1 0 8px; min-width: 8px; }
+  .main-head .btn { flex: 0 0 auto; padding: 9px 13px; }
+
+  .main-body { padding: 12px; }
+  .card { padding: 13px; margin-bottom: 11px; }
+  .in { padding: 11px 12px; font-size: 16px; }
+  .btn { padding: 11px 16px; }
+  .btn.sm { padding: 9px 13px; font-size: 13px; }
+  .chip { padding: 7px 13px; font-size: 13px; }
+
+  /* 工具栏改成横向滚动，不再挤成两三行 */
+  .toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .tb { flex: 0 0 auto; min-width: 40px; padding: 9px 11px; }
+
+  .panes textarea { min-height: 44vh; font-size: 15px; }
+}
+</style>
+<style>
+.meta-toggle { display: none; }
+@media (max-width: 900px) {
+  .meta-toggle {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 9px 2px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .meta-body.collapsed { display: none; }
+}
+</style>
 </head>
 <body>
 
@@ -205,7 +272,7 @@ input,select,textarea{font:inherit;color:inherit}
       <span class="stat" id="stat"></span>
       <button class="btn sm ghost" onclick="togglePreview()">预览</button>
       <button class="btn sm ghost" onclick="aiMenu()">AI</button>
-      <button class="btn sm danger" onclick="delPost()">删除</button>
+      <button class="btn sm ghost" style="color:#ff3b30" onclick="delPost()">删除</button>
       <button class="btn sm" id="saveBtn" onclick="save()">保存</button>
     </div>
     <div class="main-body" id="body">
@@ -214,6 +281,8 @@ input,select,textarea{font:inherit;color:inherit}
           <label>标题</label>
           <input id="m_title" class="in" placeholder="文章标题">
         </div>
+        <button type="button" class="meta-toggle" id="metaToggle" onclick="toggleMeta()">文章信息（分类 / 标签 / 封面…）▸</button>
+        <div class="meta-body collapsed" id="metaBody">
         <div class="grid3">
           <div class="f">
             <label>分类</label>
@@ -248,6 +317,7 @@ input,select,textarea{font:inherit;color:inherit}
         <div class="side-row" style="gap:18px;flex-wrap:wrap">
           <label class="switch"><input type="checkbox" id="m_sticky"> 置顶</label>
           <label class="switch"><input type="checkbox" id="m_draft"> 存为草稿</label>
+        </div>
         </div>
       </div>
 
@@ -424,13 +494,24 @@ function renderList() {
   }).join('');
 }
 
-function showList() {
-  $('app').dataset.view = 'list';
+function showList(fromPop) {
+  const app = $('app');
+  if (app.dataset.view === 'list') return;
+  app.dataset.view = 'list';
+  // 手机上编辑视图压在列表之上，系统返回手势应能退回列表
+  if (!fromPop && history.state && history.state.view === 'edit') history.back();
 }
 
 function showEdit() {
-  $('app').dataset.view = 'edit';
+  const app = $('app');
+  if (app.dataset.view === 'edit') return;
+  app.dataset.view = 'edit';
+  history.pushState({ view: 'edit' }, '');
 }
+
+window.addEventListener('popstate', function () {
+  if ($('app').dataset.view === 'edit') showList(true);
+});
 </script>
 <script>
 async function openPost(path) {
@@ -914,6 +995,16 @@ function aiMenu() {
     e.target.value = '';
   });
 })();
+</script>
+<script>
+function toggleMeta() {
+  const body = $('metaBody');
+  const btn = $('metaToggle');
+  const collapsed = body.classList.toggle('collapsed');
+  btn.textContent = collapsed
+    ? '文章信息（分类 / 标签 / 封面…）\u25b8'
+    : '文章信息（分类 / 标签 / 封面…）\u25be';
+}
 </script>
 </body>
 </html>
