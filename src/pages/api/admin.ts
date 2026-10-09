@@ -36,7 +36,8 @@ function authorize(request: Request) {
 
 /** 调用 GitHub REST API。full=true 时 path 视为完整 API 路径（如 git/trees/main?recursive=1）。 */
 async function gh(path: string, opts: any = {}, full = false) {
-  const url = full ? `https://api.github.com/${path}` : `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}`;
+  const base = `https://api.github.com/repos/${OWNER}/${REPO}`;
+  const url = full ? `${base}/${path}` : `${base}/contents/${path}`;
   const headers: any = {
     Authorization: `Bearer ${import.meta.env.GH_TOKEN}`,
     Accept: 'application/vnd.github+json',
@@ -164,7 +165,9 @@ function categoryPath(c?: string) {
 
 /** 由文件路径反查中文分类名，供列表展示。 */
 function categoryNameOf(path: string) {
-  for (const [name, dir] of Object.entries(CATEGORY_MAP)) {
+  // 先比长路径，否则 life 会抢在 life/anime 前面命中
+  const entries = Object.entries(CATEGORY_MAP).sort((a, b) => b[1].length - a[1].length);
+  for (const [name, dir] of entries) {
     if (path.includes(`/${dir}/`)) return name;
   }
   return '随笔';
