@@ -2,69 +2,918 @@
 <html lang="zh">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
 <title>YuriのBlog · 写作后台</title>
 <style>
+:root{
+  --brand:#e9536a; --brand-soft:#f9a8b8; --brand-deep:#c73e54;
+  --bg:#faf7f8; --card:#fff; --ink:#241a1e; --muted:#8b7d83;
+  --line:#eee2e6; --field:#fff; --radius:12px;
+  --shadow:0 1px 2px rgba(60,30,40,.05),0 8px 24px -16px rgba(60,30,40,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#171114; --card:#1f171b; --ink:#f2e9ec; --muted:#a2909a;
+    --line:#2e2429; --field:#241b20; --brand-soft:#8a4a58;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.6);
+  }
+}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:#f5f6fa;color:#222;padding:20px;max-width:860px;margin:0 auto}
-h1{font-size:22px;margin:20px 0}
-.hidden{display:none!important}
-.card{background:#fff;border-radius:12px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
-label{display:block;font-size:13px;color:#666;margin:12px 0 4px}
-input,textarea,select{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;font-family:inherit}
-textarea{min-height:300px;line-height:1.6;resize:vertical}
-button{background:#0a84ff;color:#fff;border:none;padding:11px 22px;border-radius:8px;font-size:14px;cursor:pointer}
-button.ghost{background:#eee;color:#333}
-button.danger{background:#ff3b30}
-.row{display:flex;gap:12px}.row>div{flex:1}
-.tip{font-size:12px;color:#999;margin-top:6px}
-.post-item{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0}
-.post-item .name{font-size:14px}.post-item .path{font-size:12px;color:#999}
-#msg{position:fixed;top:16px;right:16px;padding:12px 18px;border-radius:8px;color:#fff;font-size:14px;display:none;z-index:99}
-#msg.ok{background:#34c759}#msg.err{background:#ff3b30}
+html,body{height:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;
+}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input,select,textarea{font:inherit;color:inherit}
+.hide{display:none!important}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 16px;border-radius:9px;background:var(--brand);color:#fff;
+  font-size:14px;font-weight:500;white-space:nowrap;
+  transition:transform .16s cubic-bezier(.16,1,.3,1),opacity .16s;
+}
+.btn:active{transform:scale(.96)}
+.btn.ghost{background:var(--field);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.danger{background:#ff3b30}
+.btn:disabled{opacity:.45;pointer-events:none}
+.btn.sm{padding:6px 11px;font-size:13px;border-radius:8px}
+.btn.sm.ghost{box-shadow:inset 0 0 0 1px var(--line)}
+
+/* ── 登录 ── */
+.gate{display:flex;align-items:center;justify-content:center;min-height:100dvh;padding:24px}
+.gate .card{
+  width:100%;max-width:340px;background:var(--card);border-radius:16px;
+  padding:28px 24px;box-shadow:var(--shadow);
+}
+.gate h1{font-size:19px;font-weight:600;margin-bottom:4px}
+.gate p{font-size:13px;color:var(--muted);margin-bottom:20px}
+</style>
+<style>
+/* ── 主布局 ── */
+.app{display:flex;height:100dvh;overflow:hidden;position:relative}
+.side{
+  width:308px;flex:0 0 308px;display:flex;flex-direction:column;
+  background:var(--card);border-right:1px solid var(--line);
+}
+.side-head{padding:14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.side-row{display:flex;align-items:center;gap:8px}
+.side-row strong{font-size:15px;flex:1}
+.side-list{flex:1;overflow-y:auto;padding:7px;-webkit-overflow-scrolling:touch}
+.item{padding:10px 11px;border-radius:10px;cursor:pointer;transition:background .15s}
+.item:hover{background:var(--bg)}
+.item.on{background:color-mix(in oklab,var(--brand) 11%,transparent)}
+.item-t{font-size:14px;font-weight:500;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item-m{font-size:12px;color:var(--muted);display:flex;gap:9px;flex-wrap:wrap;align-items:center}
+.dot{display:inline-block;padding:1px 6px;border-radius:5px;font-size:11px;background:var(--field);box-shadow:inset 0 0 0 1px var(--line)}
+.dot.sticky{background:color-mix(in oklab,var(--brand) 16%,transparent);color:var(--brand-deep);box-shadow:none}
+.dot.draft{background:#f0ad4e22;color:#b07c1e;box-shadow:none}
+
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);min-width:0}
+.main-head{
+  padding:11px 14px;border-bottom:1px solid var(--line);background:var(--card);
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding-top:calc(11px + env(safe-area-inset-top));
+}
+.main-head .grow{flex:1;min-width:60px}
+.main-head .stat{font-size:12px;color:var(--muted);white-space:nowrap}
+.main-body{flex:1;overflow-y:auto;padding:16px;padding-bottom:calc(28px + env(safe-area-inset-bottom));-webkit-overflow-scrolling:touch}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+
+/* 表单 */
+.f{margin-bottom:12px}
+.f>label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:500}
+.in{
+  width:100%;padding:9px 11px;border-radius:9px;background:var(--field);
+  box-shadow:inset 0 0 0 1px var(--line);border:none;outline:none;font-size:14px;
+  transition:box-shadow .15s;
+}
+.in:focus{box-shadow:inset 0 0 0 1.5px var(--brand)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px}
+@media (max-width:640px){.grid2,.grid3{grid-template-columns:1fr}}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{
+  font-size:12px;padding:4px 10px;border-radius:20px;background:var(--field);
+  box-shadow:inset 0 0 0 1px var(--line);transition:all .15s;
+}
+.chip:hover{box-shadow:inset 0 0 0 1px var(--brand);color:var(--brand-deep)}
+.switch{display:inline-flex;align-items:center;gap:7px;font-size:13px;cursor:pointer;user-select:none}
+.switch input{width:15px;height:15px;accent-color:var(--brand)}
+</style>
+<style>
+/* ── 编辑器 ── */
+.editor{border-radius:var(--radius);box-shadow:var(--shadow);background:var(--card);overflow:hidden}
+.toolbar{display:flex;gap:3px;flex-wrap:wrap;padding:7px 8px;border-bottom:1px solid var(--line);background:var(--field)}
+.tb{padding:6px 9px;border-radius:7px;font-size:13px;color:var(--muted);transition:background .14s,color .14s;min-width:32px;text-align:center}
+.tb:hover{background:var(--bg);color:var(--ink)}
+.tb.on{background:color-mix(in oklab,var(--brand) 14%,transparent);color:var(--brand-deep)}
+.tb-sep{width:1px;background:var(--line);margin:5px 3px}
+.tb-group{display:flex;gap:3px}
+
+.panes{display:grid;grid-template-columns:1fr 1fr;min-height:50vh}
+.panes textarea{
+  width:100%;min-height:50vh;padding:16px;border:none;outline:none;resize:vertical;
+  background:var(--card);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:14px;line-height:1.75;tab-size:2;
+}
+.pane-preview{padding:16px;overflow-y:auto;border-left:1px solid var(--line);max-height:72vh}
+.panes.solo{grid-template-columns:1fr}
+.panes.solo .pane-preview{display:none}
+@media (max-width:900px){
+  .panes{grid-template-columns:1fr}
+  .panes .pane-preview{display:none;border-left:none}
+  .panes.pv .pane-preview{display:block}
+  .panes.pv textarea{display:none}
+}
+
+/* 预览排版 */
+.md{font-size:15px;line-height:1.8;word-wrap:break-word}
+.md h1,.md h2,.md h3{margin:1.35em 0 .6em;line-height:1.35;font-weight:600}
+.md h1{font-size:1.5em}.md h2{font-size:1.27em}.md h3{font-size:1.12em}
+.md p{margin:.85em 0}
+.md a{color:var(--brand-deep);text-decoration:underline;text-underline-offset:3px}
+.md img{max-width:100%;border-radius:10px;margin:.7em 0;display:block}
+.md code{background:var(--field);padding:.15em .4em;border-radius:5px;font-size:.9em;box-shadow:inset 0 0 0 1px var(--line)}
+.md pre{background:var(--field);padding:12px 14px;border-radius:10px;overflow-x:auto;margin:.9em 0;box-shadow:inset 0 0 0 1px var(--line)}
+.md pre code{background:none;box-shadow:none;padding:0}
+.md blockquote{border-left:3px solid var(--brand-soft);padding-left:14px;margin:.9em 0;color:var(--muted)}
+.md ul,.md ol{padding-left:1.4em;margin:.8em 0}
+.md li{margin:.3em 0}
+.md hr{border:none;border-top:1px solid var(--line);margin:1.6em 0}
+.md table{border-collapse:collapse;margin:.9em 0;font-size:.94em}
+.md th,.md td{border:1px solid var(--line);padding:6px 10px}
+.md th{background:var(--field)}
+.md .empty{color:var(--muted);font-size:13px}
+
+/* 提示与遮罩 */
+#toast{
+  position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(18px);
+  background:var(--ink);color:var(--bg);padding:11px 20px;border-radius:11px;font-size:14px;
+  opacity:0;pointer-events:none;z-index:99;max-width:86vw;
+  transition:opacity .24s,transform .24s cubic-bezier(.16,1,.3,1);
+}
+#toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{background:#ff3b30;color:#fff}
+#busy{position:fixed;inset:0;background:rgba(30,16,22,.3);display:flex;align-items:center;justify-content:center;z-index:80}
+.spin{width:34px;height:34px;border:3px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.drop{outline:2px dashed var(--brand);outline-offset:-8px}
 </style>
 </head>
 <body>
-<h1>YuriのBlog · 写作后台</h1>
-<div id="login" class="card">
-  <label>后台密码</label>
-  <input type="password" id="pwd" placeholder="输入管理密码">
-  <div style="margin-top:14px"><button onclick="login()">登录</button></div>
-</div>
-<div id="panel" class="hidden">
+
+<div id="gate" class="gate">
   <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <strong>写新文章</strong><button class="ghost" onclick="logout()">退出</button>
+    <h1>YuriのBlog</h1>
+    <p>写作后台</p>
+    <div class="f">
+      <label>后台密码</label>
+      <input type="password" id="pwd" class="in" placeholder="输入管理密码" autocomplete="current-password">
     </div>
-    <label>标题 *</label><input id="title" placeholder="文章标题">
-    <div class="row">
-      <div><label>分类</label><select id="category"><option>随笔</option><option>笔记</option><option>工具</option><option>周刊</option><option>前端</option><option>番剧</option></select></div>
-      <div><label>标签（逗号分隔）</label><input id="tags" placeholder="例如：生活, 感想"></div>
-    </div>
-    <label>链接 slug（可选，留空自动生成）</label><input id="link" placeholder="例如：my-first-post">
-    <label>简介（可选）</label><input id="description" placeholder="文章摘要，留空自动截取">
-    <label>正文（Markdown）*</label><textarea id="content" placeholder="在这里写正文，支持 Markdown 语法"></textarea>
-    <div class="tip">发布后约 1~2 分钟生效（触发 Vercel 重新构建）</div>
-    <div style="margin-top:16px"><button onclick="createPost()">发布文章</button></div>
-  </div>
-  <div class="card">
-    <strong>已发布文章</strong>
-    <div id="postlist" style="margin-top:8px"><div class="tip">加载中…</div></div>
+    <button class="btn" style="width:100%" onclick="doLogin()">进入</button>
   </div>
 </div>
-<div id="msg"></div>
+
+<div id="app" class="app hide" data-view="list">
+  <aside class="side">
+    <div class="side-head">
+      <div class="side-row">
+        <strong>文章</strong>
+        <span class="stat" id="count"></span>
+        <button class="btn sm ghost" onclick="doLogout()">退出</button>
+      </div>
+      <input id="q" class="in" placeholder="搜索标题 / 标签…" oninput="renderList()">
+      <div class="side-row">
+        <select id="filterCat" class="in" onchange="renderList()"></select>
+        <select id="sortBy" class="in" onchange="renderList()">
+          <option value="date">按时间</option>
+          <option value="words">按字数</option>
+          <option value="title">按标题</option>
+        </select>
+      </div>
+      <button class="btn" onclick="newPost()">＋ 写新文章</button>
+    </div>
+    <div class="side-list" id="list"></div>
+  </aside>
+
+  <main class="main">
+    <div class="main-head">
+      <button class="btn sm ghost" onclick="showList()">← 列表</button>
+      <span class="grow"></span>
+      <span class="stat" id="stat"></span>
+      <button class="btn sm ghost" onclick="togglePreview()">预览</button>
+      <button class="btn sm ghost" onclick="aiMenu()">AI</button>
+      <button class="btn sm danger" onclick="delPost()">删除</button>
+      <button class="btn sm" id="saveBtn" onclick="save()">保存</button>
+    </div>
+    <div class="main-body" id="body">
+      <div class="card">
+        <div class="f">
+          <label>标题</label>
+          <input id="m_title" class="in" placeholder="文章标题">
+        </div>
+        <div class="grid3">
+          <div class="f">
+            <label>分类</label>
+            <select id="m_category" class="in"></select>
+          </div>
+          <div class="f">
+            <label>日期</label>
+            <input id="m_date" class="in" placeholder="2026-10-08 20:00:00">
+          </div>
+          <div class="f">
+            <label>slug（链接）</label>
+            <input id="m_slug" class="in" placeholder="留空自动生成">
+          </div>
+        </div>
+        <div class="f">
+          <label>标签（逗号分隔）</label>
+          <input id="m_tags" class="in" placeholder="生活, 感想" oninput="renderChips()">
+          <div class="chips" id="chips"></div>
+        </div>
+        <div class="f">
+          <label>简介</label>
+          <input id="m_desc" class="in" placeholder="留空则由正文自动截取">
+        </div>
+        <div class="f">
+          <label>封面图（可粘贴图片地址，或从下方上传）</label>
+          <div class="side-row">
+            <input id="m_cover" class="in" placeholder="/images/uploads/…">
+            <button class="btn sm ghost" onclick="document.getElementById('coverPicker').click()">上传</button>
+          </div>
+          <div id="coverBox" style="margin-top:8px"></div>
+        </div>
+        <div class="side-row" style="gap:18px;flex-wrap:wrap">
+          <label class="switch"><input type="checkbox" id="m_sticky"> 置顶</label>
+          <label class="switch"><input type="checkbox" id="m_draft"> 存为草稿</label>
+        </div>
+      </div>
+
+      <div class="editor">
+        <div class="toolbar">
+          <div class="tb-group">
+            <button class="tb" onclick="wrapSel('**','**')" title="加粗">B</button>
+            <button class="tb" onclick="wrapSel('*','*')" title="斜体">I</button>
+            <button class="tb" onclick="wrapSel('\`','\`')" title="行内代码">&lt;/&gt;</button>
+          </div>
+          <span class="tb-sep"></span>
+          <div class="tb-group">
+            <button class="tb" onclick="prefixLine('## ')" title="标题">H</button>
+            <button class="tb" onclick="prefixLine('&gt; ')" title="引用">❝</button>
+            <button class="tb" onclick="prefixLine('- ')" title="列表">≡</button>
+            <button class="tb" onclick="insertText('\n---\n')" title="分割线">—</button>
+          </div>
+          <span class="tb-sep"></span>
+          <div class="tb-group">
+            <button class="tb" onclick="insertLink()" title="插入链接">链接</button>
+            <button class="tb" onclick="pickImage()" title="插入图片">图片</button>
+          </div>
+          <span class="tb-sep"></span>
+          <div class="tb-group">
+            <button class="tb" onclick="aiRun('polish')" title="AI 润色全文">润色</button>
+            <button class="tb" onclick="aiRun('continue')" title="AI 续写">续写</button>
+          </div>
+        </div>
+        <div class="panes pv" id="panes">
+          <textarea id="content" placeholder="在这里写正文，支持 Markdown。可直接粘贴或拖入图片…"></textarea>
+          <div class="pane-preview"><div class="md" id="preview"></div></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="toast"></div>
+<input type="file" id="picker" accept="image/*" multiple class="hide">
+<input type="file" id="coverPicker" accept="image/*" class="hide">
 <script>
-const API='/api/admin';
-let password=localStorage.getItem('admin_pwd')||'';
-function toast(t,ok){const m=document.getElementById('msg');m.textContent=t;m.className=ok?'ok':'err';m.style.display='block';setTimeout(()=>m.style.display='none',3000);}
-async function call(q){const res=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+password},body:JSON.stringify(q)});const data=await res.json();if(!data.ok)throw new Error(data.error||'请求失败');return data;}
-function login(){password=document.getElementById('pwd').value.trim();if(!password)return toast('请输入密码',false);localStorage.setItem('admin_pwd',password);init();}
-function logout(){password='';localStorage.removeItem('admin_pwd');document.getElementById('login').classList.remove('hidden');document.getElementById('panel').classList.add('hidden');}
-async function init(){if(!password){document.getElementById('login').classList.remove('hidden');return;}document.getElementById('login').classList.add('hidden');document.getElementById('panel').classList.remove('hidden');try{await listPosts();}catch(e){if(e.message.includes('401')){logout();toast('密码错误',false);}}}
-async function listPosts(){try{const data=await call({action:'list'});const list=document.getElementById('postlist');const items=(data.posts||[]).filter(p=>p.type==='file'&&p.name.endsWith('.md'));if(!items.length){list.innerHTML='<div class="tip">还没有文章</div>';return;}list.innerHTML=items.map(p=>`<div class="post-item"><div><div class="name">${p.name}</div><div class="path">${p.path}</div></div><button class="danger" onclick="del('${p.path}')">删除</button></div>`).join('');}catch(e){toast(e.message,false);}}
-async function createPost(){const title=document.getElementById('title').value.trim();const content=document.getElementById('content').value.trim();if(!title||!content)return toast('标题和正文不能为空',false);const category=document.getElementById('category').value;const tags=document.getElementById('tags').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean);const link=document.getElementById('link').value.trim();const description=document.getElementById('description').value.trim();try{await call({action:'create',title,content,category,tags,link,description});toast('发布成功！约 1~2 分钟后上线',true);document.getElementById('title').value='';document.getElementById('content').value='';document.getElementById('tags').value='';document.getElementById('link').value='';document.getElementById('description').value='';await listPosts();}catch(e){toast(e.message,false);}}
-async function del(path){if(!confirm('确定删除这篇文章？'))return;const m=path.match(/blog\/([^/]+)\/([^/]+)\.md$/);const link=m?m[2]:'';const cat=path.includes('note/front-end')?'前端':(path.includes('/life/')?'随笔':(path.includes('/note/')?'笔记':(path.includes('/tools/')?'工具':'周刊')));try{await call({action:'delete',category:cat,link});toast('已删除',true);await listPosts();}catch(e){toast(e.message,false);}}
-init();
+const API = '/api/admin';
+const CATS = ['随笔', '笔记', '工具', '周刊', '前端', '番剧'];
+let pwd = localStorage.getItem('admin_pwd') || '';
+let posts = [];
+let cur = null;
+let dirty = false;
+let pvOn = true;
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function toast(msg, ok = true) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = ok ? 'on' : 'on err';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => (t.className = ''), 2800);
+}
+
+function busy(on) {
+  let el = document.getElementById('busy');
+  if (on && !el) {
+    el = document.createElement('div');
+    el.id = 'busy';
+    el.innerHTML = '<div class="spin"></div>';
+    document.body.appendChild(el);
+  } else if (!on && el) {
+    el.remove();
+  }
+}
+
+async function call(payload) {
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + pwd },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({ ok: false, error: '响应解析失败' }));
+  if (!data.ok) throw new Error(data.error || '请求失败');
+  return data;
+}
+
+function fillCats() {
+  const sel = $('m_category');
+  sel.innerHTML = CATS.map((c) => `<option>${c}</option>`).join('');
+}
+
+function doLogin() {
+  const v = $('pwd').value.trim();
+  if (!v) return toast('请输入密码', false);
+  pwd = v;
+  localStorage.setItem('admin_pwd', pwd);
+  boot();
+}
+
+function doLogout() {
+  pwd = '';
+  localStorage.removeItem('admin_pwd');
+  $('app').classList.add('hide');
+  $('gate').classList.remove('hide');
+}
+</script>
+<script>
+async function boot() {
+  try {
+    busy(true);
+    const d = await call({ action: 'list' });
+    posts = d.posts || [];
+    busy(false);
+    $('gate').classList.add('hide');
+    $('app').classList.remove('hide');
+    fillCats();
+    fillFilter();
+    renderList();
+  } catch (e) {
+    busy(false);
+    if (String(e.message).includes('未授权')) {
+      localStorage.removeItem('admin_pwd');
+      pwd = '';
+      showList();
+      $('app').classList.add('hide');
+      $('gate').classList.remove('hide');
+      toast('密码错误', false);
+    } else {
+      toast(e.message, false);
+    }
+  }
+}
+
+function fillFilter() {
+  const s = $('filterCat');
+  const keep = s.value;
+  s.innerHTML = '<option value="">全部分类</option>' +
+    CATS.map((c) => `<option value="${c}">${c}</option>`).join('');
+  s.value = keep;
+}
+
+function renderList() {
+  const q = $('q').value.trim().toLowerCase();
+  const cat = $('filterCat').value;
+  const sort = $('sortBy').value;
+
+  let arr = posts.filter((p) => {
+    if (cat && p.category !== cat) return false;
+    if (!q) return true;
+    const hay = `${p.title} ${(p.tags || []).join(' ')} ${p.slug}`.toLowerCase();
+    return hay.includes(q);
+  });
+
+  if (sort === 'words') arr = [...arr].sort((a, b) => (b.words || 0) - (a.words || 0));
+  else if (sort === 'title') arr = [...arr].sort((a, b) => String(a.title).localeCompare(String(b.title), 'zh'));
+  else arr = [...arr].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+
+  $('count').textContent = `${arr.length} / ${posts.length}`;
+
+  if (!arr.length) {
+    $('list').innerHTML = '<div class="item-m" style="padding:20px;justify-content:center">没有匹配的文章</div>';
+    return;
+  }
+
+  $('list').innerHTML = arr.map((p) => {
+    const on = cur && cur.path === p.path ? ' on' : '';
+    return `<div class="item${on}" onclick="openPost(decodeURIComponent('${encodeURIComponent(p.path)}'))">
+      <div class="item-t">${esc(p.title)}</div>
+      <div class="item-m">
+        <span>${esc((p.date || '').slice(0, 10))}</span>
+        <span>${esc(p.category)}</span>
+        <span>${p.words || 0} 字</span>
+        ${p.sticky ? '<span class="dot sticky">置顶</span>' : ''}
+        ${p.draft ? '<span class="dot draft">草稿</span>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showList() {
+  $('app').dataset.view = 'list';
+}
+
+function showEdit() {
+  $('app').dataset.view = 'edit';
+}
+</script>
+<script>
+async function openPost(path) {
+  if (dirty && !confirm('当前修改还没保存，确定离开？')) return;
+  try {
+    busy(true);
+    const d = await call({ action: 'get', path });
+    busy(false);
+    const m = d.meta || {};
+    const slug = path.split('/').pop().replace(/\.md$/, '');
+    cur = { path, slug, originalPath: path };
+    $('m_title').value = m.title || '';
+    $('m_slug').value = slug;
+    $('m_category').value = d.category || '随笔';
+    $('m_date').value = m.date || '';
+    $('m_tags').value = (m.tags || []).join(', ');
+    $('m_desc').value = m.description || '';
+    $('m_cover').value = m.cover || '';
+    $('m_sticky').checked = !!m.sticky;
+    $('m_draft').checked = !!m.draft;
+    $('content').value = d.content || '';
+    dirty = false;
+    renderChips();
+    renderCover();
+    renderPreview();
+    updateStat();
+    renderList();
+    showEdit();
+    $('body').scrollTop = 0;
+  } catch (e) {
+    busy(false);
+    toast(e.message, false);
+  }
+}
+
+function newPost() {
+  if (dirty && !confirm('当前修改还没保存，确定新建？')) return;
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:00`;
+  cur = { path: '', slug: '', originalPath: '' };
+  $('m_title').value = '';
+  $('m_slug').value = '';
+  $('m_category').value = '随笔';
+  $('m_date').value = stamp;
+  $('m_tags').value = '';
+  $('m_desc').value = '';
+  $('m_cover').value = '';
+  $('m_sticky').checked = false;
+  $('m_draft').checked = false;
+  $('content').value = '';
+  dirty = false;
+  renderChips();
+  renderCover();
+  renderPreview();
+  updateStat();
+  renderList();
+  showEdit();
+  $('m_title').focus();
+}
+
+function togglePreview() {
+  pvOn = !pvOn;
+  const p = $('panes');
+  if (window.innerWidth <= 900) p.classList.toggle('pv', pvOn);
+  else p.classList.toggle('solo', !pvOn);
+  if (pvOn) renderPreview();
+}
+
+function wrapSel(before, after) {
+  const el = $('content');
+  const s = el.selectionStart, e = el.selectionEnd;
+  const sel = el.value.slice(s, e);
+  const text = before + (sel || '文字') + after;
+  el.setRangeText(text, s, e, 'end');
+  el.focus();
+  markDirty();
+}
+
+function prefixLine(prefix) {
+  const el = $('content');
+  const s = el.selectionStart;
+  const ls = el.value.lastIndexOf('\n', s - 1) + 1;
+  el.setRangeText(prefix, ls, ls, 'end');
+  el.focus();
+  markDirty();
+}
+
+function insertText(t) {
+  const el = $('content');
+  el.setRangeText(t, el.selectionStart, el.selectionEnd, 'end');
+  el.focus();
+  markDirty();
+}
+
+function insertLink() {
+  const url = prompt('链接地址');
+  if (!url) return;
+  const el = $('content');
+  const sel = el.value.slice(el.selectionStart, el.selectionEnd);
+  el.setRangeText(`[${sel || '链接文字'}](${url})`, el.selectionStart, el.selectionEnd, 'end');
+  el.focus();
+  markDirty();
+}
+
+function markDirty() {
+  dirty = true;
+  $('saveBtn').textContent = '保存 ·';
+  renderPreview();
+  updateStat();
+}
+
+function updateStat() {
+  const t = $('content').value;
+  const cjk = (t.match(/[\u4e00-\u9fff]/g) || []).length;
+  const latin = (t.match(/[A-Za-z0-9]+/g) || []).length;
+  const lines = t ? t.split('\n').length : 0;
+  $('stat').textContent = dirty ? `${cjk + latin} 字 · 未保存` : `${cjk + latin} 字 · ${lines} 行`;
+}
+</script>
+<script>
+async function save() {
+  const title = $('m_title').value.trim();
+  const content = $('content').value;
+  if (!title) return toast('标题不能为空', false);
+  if (!content.trim()) return toast('正文不能为空', false);
+
+  try {
+    busy(true);
+    const d = await call({
+      action: 'save',
+      title,
+      content,
+      slug: $('m_slug').value.trim(),
+      category: $('m_category').value,
+      date: $('m_date').value.trim(),
+      tags: $('m_tags').value.split(/[,，]/).map((s) => s.trim()).filter(Boolean),
+      description: $('m_desc').value.trim(),
+      cover: $('m_cover').value.trim(),
+      sticky: $('m_sticky').checked,
+      draft: $('m_draft').checked,
+      originalPath: cur && cur.originalPath ? cur.originalPath : '',
+    });
+    busy(false);
+    dirty = false;
+    $('saveBtn').textContent = '保存';
+    if (cur) {
+      cur.path = d.path;
+      cur.slug = d.slug;
+      cur.originalPath = d.path;
+    }
+    $('m_slug').value = d.slug;
+    updateStat();
+    toast('已保存，约 1~2 分钟后上线');
+    const l = await call({ action: 'list' });
+    posts = l.posts || [];
+    renderList();
+  } catch (e) {
+    busy(false);
+    toast(e.message, false);
+  }
+}
+
+async function delPost() {
+  if (!cur || !cur.path) return toast('还没保存过，不用删除', false);
+  if (!confirm('确定删除这篇文章？')) return;
+  try {
+    busy(true);
+    await call({ action: 'delete', path: cur.path });
+    const l = await call({ action: 'list' });
+    posts = l.posts || [];
+    busy(false);
+    cur = null;
+    dirty = false;
+    renderList();
+    showList();
+    toast('已删除');
+  } catch (e) {
+    busy(false);
+    toast(e.message, false);
+  }
+}
+
+function renderChips() {
+  const all = new Set();
+  posts.forEach((p) => (p.tags || []).forEach((t) => all.add(t)));
+  const used = $('m_tags').value.split(/[,，]/).map((s) => s.trim()).filter(Boolean);
+  const rest = [...all].filter((t) => !used.includes(t)).slice(0, 12);
+  $('chips').innerHTML = rest.map((t) =>
+    `<button class="chip" onclick="addTag('${esc(t)}')">＋ ${esc(t)}</button>`
+  ).join('');
+}
+
+function addTag(t) {
+  const v = $('m_tags').value.trim();
+  const arr = v ? v.split(/[,，]/).map((s) => s.trim()).filter(Boolean) : [];
+  if (!arr.includes(t)) arr.push(t);
+  $('m_tags').value = arr.join(', ');
+  renderChips();
+  markDirty();
+}
+
+function renderCover() {
+  const v = $('m_cover').value.trim();
+  $('coverBox').innerHTML = v
+    ? `<img src="${esc(v)}" style="max-width:180px;border-radius:10px;display:block" onerror="this.style.display='none'">`
+    : '';
+}
+</script>
+<script>
+function pickImage() { $('picker').click(); }
+
+function toDataUrl(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
+}
+
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('图片解码失败')); };
+    img.src = url;
+  });
+}
+
+/**
+ * 压缩到长边 1600 的 WebP。手机随手拍的照片常有几 MB，
+ * 原样提交既撑大仓库，也会撞上 4.5MB 的函数请求体上限。
+ */
+async function compressImage(file) {
+  const small = file.size < 400 * 1024 && /^image\/(png|jpeg|webp)$/.test(file.type);
+  if (small) return await toDataUrl(file);
+
+  const img = await loadImage(file);
+  const MAX = 1600;
+  const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+
+  const cv = document.createElement('canvas');
+  cv.width = w;
+  cv.height = h;
+  cv.getContext('2d').drawImage(img, 0, 0, w, h);
+  return cv.toDataURL('image/webp', 0.82);
+}
+
+async function uploadFiles(files) {
+  const list = [...files].filter((f) => f.type && f.type.startsWith('image/'));
+  if (!list.length) return;
+  for (const f of list) {
+    try {
+      busy(true);
+      const dataUrl = await compressImage(f);
+      const d = await call({ action: 'upload', name: f.name, dataUrl });
+      busy(false);
+      const alt = f.name.replace(/\.[^.]+$/, '');
+      insertText(`\n![${alt}](${d.url})\n`);
+      toast(`已插入图片 · ${Math.round((d.bytes || 0) / 1024)} KB`);
+    } catch (e) {
+      busy(false);
+      toast(e.message, false);
+    }
+  }
+}
+
+async function useAsCover(files) {
+  const f = [...files].find((x) => x.type && x.type.startsWith('image/'));
+  if (!f) return;
+  try {
+    busy(true);
+    const dataUrl = await compressImage(f);
+    const d = await call({ action: 'upload', name: f.name, dataUrl });
+    busy(false);
+    $('m_cover').value = d.url;
+    renderCover();
+    markDirty();
+    toast('封面已设置');
+  } catch (e) {
+    busy(false);
+    toast(e.message, false);
+  }
+}
+</script>
+<script>
+/** 轻量 Markdown 渲染：覆盖日常写作够用的子集，不引入外部依赖。 */
+function mdRender(src) {
+  const s = String(src || '');
+  if (!s.trim()) return '<p class="empty">预览会显示在这里</p>';
+
+  const blocks = [];
+  let text = s.replace(/```[^\n]*\n?([\s\S]*?)```/g, (m, code) => {
+    blocks.push(`<pre><code>${esc(code.replace(/\n$/, ''))}</code></pre>`);
+    return `\u0000B${blocks.length - 1}\u0000`;
+  });
+
+  const inline = (t) => {
+    t = esc(t);
+    t = t.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+    t = t.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    t = t.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    return t;
+  };
+
+  const out = [];
+  let list = null;
+  const closeList = () => { if (list) { out.push(`</${list}>`); list = null; } };
+
+  for (const raw of text.split('\n')) {
+    const line = raw.replace(/\s+$/, '');
+    const ph = line.trim().match(/^\u0000B(\d+)\u0000$/);
+    if (ph) { closeList(); out.push(blocks[Number(ph[1])]); continue; }
+    if (!line.trim()) { closeList(); continue; }
+
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { closeList(); out.push(`<h${h[1].length}>${inline(h[2])}</h${h[1].length}>`); continue; }
+    if (/^(-{3,}|\*{3,})$/.test(line.trim())) { closeList(); out.push('<hr>'); continue; }
+
+    const q = line.match(/^>\s?(.*)$/);
+    if (q) { closeList(); out.push(`<blockquote>${inline(q[1])}</blockquote>`); continue; }
+
+    const ul = line.match(/^\s*[-*+]\s+(.*)$/);
+    if (ul) {
+      if (list !== 'ul') { closeList(); out.push('<ul>'); list = 'ul'; }
+      out.push(`<li>${inline(ul[1])}</li>`);
+      continue;
+    }
+    const ol = line.match(/^\s*\d+[.)]\s+(.*)$/);
+    if (ol) {
+      if (list !== 'ol') { closeList(); out.push('<ol>'); list = 'ol'; }
+      out.push(`<li>${inline(ol[1])}</li>`);
+      continue;
+    }
+
+    closeList();
+    out.push(`<p>${inline(line)}</p>`);
+  }
+  closeList();
+  return out.join('\n');
+}
+
+function renderPreview() {
+  if (!pvOn) return;
+  $('preview').innerHTML = mdRender($('content').value);
+}
+</script>
+<script>
+async function aiRun(kind) {
+  const content = $('content').value;
+  const title = $('m_title').value.trim();
+  if (!content.trim()) return toast('正文还是空的', false);
+
+  const ask = {
+    polish: 'AI 会重写全文并替换当前正文，继续？',
+    continue: 'AI 会接着往下写，追加到正文末尾，继续？',
+  }[kind];
+  if (ask && !confirm(ask)) return;
+
+  try {
+    busy(true);
+    const d = await call({ action: 'ai', kind, title, content });
+    busy(false);
+    const r = d.result || '';
+
+    if (kind === 'polish') {
+      $('content').value = r;
+    } else if (kind === 'continue') {
+      $('content').value = content.replace(/\s*$/, '') + '\n\n' + r;
+    } else if (kind === 'summary') {
+      $('m_desc').value = r;
+    } else if (kind === 'tags') {
+      $('m_tags').value = r.replace(/[，、]/g, ',').split(',')
+        .map((x) => x.trim()).filter(Boolean).join(', ');
+      renderChips();
+    } else if (kind === 'titles') {
+      const opts = r.split('\n').map((x) => x.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean);
+      const pick = prompt('候选标题，输入序号选用：\n' + opts.map((t, i) => `${i + 1}. ${t}`).join('\n'));
+      const i = parseInt(pick, 10);
+      if (!(i >= 1 && i <= opts.length)) return;
+      $('m_title').value = opts[i - 1];
+    }
+    markDirty();
+    toast('AI 处理完成');
+  } catch (e) {
+    busy(false);
+    toast(e.message, false);
+  }
+}
+
+function aiMenu() {
+  const pick = prompt('AI 辅助：\n1 · 生成摘要\n2 · 推荐标签\n3 · 拟几个标题\n4 · 润色全文\n5 · 接着写\n\n输入序号');
+  const map = { 1: 'summary', 2: 'tags', 3: 'titles', 4: 'polish', 5: 'continue' };
+  const kind = map[Number(String(pick || '').trim())];
+  if (kind) aiRun(kind);
+}
+</script>
+<script>
+(function init() {
+  ['m_title', 'm_slug', 'm_category', 'm_date', 'm_tags', 'm_desc', 'm_cover', 'content'].forEach((id) => {
+    const el = $(id);
+    el.addEventListener('input', () => {
+      if (id === 'm_tags') renderChips();
+      if (id === 'm_cover') renderCover();
+      markDirty();
+    });
+  });
+  ['m_sticky', 'm_draft'].forEach((id) => $(id).addEventListener('change', markDirty));
+
+  $('picker').addEventListener('change', (e) => {
+    uploadFiles(e.target.files);
+    e.target.value = '';
+  });
+
+  // 直接粘贴截图 / 图片
+  $('content').addEventListener('paste', (e) => {
+    const items = (e.clipboardData && e.clipboardData.items) || [];
+    const files = [...items]
+      .filter((it) => it.type && it.type.startsWith('image/'))
+      .map((it) => it.getAsFile())
+      .filter(Boolean);
+    if (files.length) {
+      e.preventDefault();
+      uploadFiles(files);
+    }
+  });
+
+  // 拖入图片
+  const app = $('app');
+  app.addEventListener('dragover', (e) => { e.preventDefault(); app.classList.add('drop'); });
+  app.addEventListener('dragleave', () => app.classList.remove('drop'));
+  app.addEventListener('drop', (e) => {
+    e.preventDefault();
+    app.classList.remove('drop');
+    if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+      uploadFiles(e.dataTransfer.files);
+    }
+  });
+
+  // 快捷键：⌘/Ctrl+S 保存、⌘/Ctrl+B 加粗、Esc 回列表
+  document.addEventListener('keydown', (e) => {
+    const meta = e.metaKey || e.ctrlKey;
+    if (meta && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+    else if (meta && e.key.toLowerCase() === 'b') { e.preventDefault(); wrapSel('**', '**'); }
+    else if (e.key === 'Escape' && app.dataset.view === 'edit') { showList(); }
+  });
+
+  window.addEventListener('beforeunload', (e) => {
+    if (dirty) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  // 每 5 秒把未保存内容留在本地，防止误关页面丢稿
+  setInterval(() => {
+    if (!dirty || !cur) return;
+    try {
+      localStorage.setItem('admin_draft', JSON.stringify({
+        path: cur.path, title: $('m_title').value, content: $('content').value, at: Date.now(),
+      }));
+    } catch { /* 存不下就算了 */ }
+  }, 5000);
+
+  const panes = $('panes');
+  if (window.innerWidth <= 900) panes.classList.add('pv');
+
+  fillCats();
+  if (pwd) boot(); else $('gate').classList.remove('hide');
+})();
+</script>
+<script>
+(function () {
+  const cp = document.getElementById('coverPicker');
+  if (cp) cp.addEventListener('change', function (e) {
+    useAsCover(e.target.files);
+    e.target.value = '';
+  });
+})();
 </script>
 </body>
 </html>
