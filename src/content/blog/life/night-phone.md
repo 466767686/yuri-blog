@@ -1,5 +1,5 @@
 ---
-title: "深夜"
+title: "9.27"
 link: night-phone
 date: 2026-09-27 20:00:00
 catalog: true
@@ -24,4 +24,5 @@ categories:
 现在快十二点了,耳机里还在唱,明早 6:20 出门
 
 睡了
+
 
