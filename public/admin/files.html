@@ -159,8 +159,10 @@ input{font:inherit;color:inherit}
 <script>
 const API = '/api/admin';
 let pwd = localStorage.getItem('admin_pwd') || '';
+let mode = 'github';
+let drive = null;
 let maxBytes = 3.5 * 1024 * 1024;
-let files = [];
+let items = [];
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -170,13 +172,13 @@ function toast(msg, ok = true) {
   t.textContent = msg;
   t.className = ok ? 'on' : 'on err';
   clearTimeout(t._t);
-  t._t = setTimeout(() => (t.className = ''), 3000);
+  t._t = setTimeout(() => (t.className = ''), 3200);
 }
 
 function sizeText(n) {
   if (!n) return '0 B';
-  const u = ['B', 'KB', 'MB', 'GB'];
-  let v = n, i = 0;
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = Number(n), i = 0;
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i += 1; }
   return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${u[i]}`;
 }
@@ -201,23 +203,61 @@ function showApp(on) {
   $('app').classList.toggle('hide', !on);
 }
 
+function updateModeUI() {
+  if (mode === 'drive' && drive) {
+    const q = drive.quota;
+    const used = q && q.usage ? sizeText(Number(q.usage)) : '';
+    const total = q && q.limit ? sizeText(Number(q.limit)) : '';
+    $('topSub').textContent = used && total ? `Google Drive · 已用 ${used} / ${total}` : 'Google Drive · 仅自己可见';
+    $('dropHint').textContent = '支持大文件，直接传到你的 Google Drive';
+  } else {
+    $('topSub').textContent = '仅自己可见，下载需要密码';
+    $('dropHint').textContent = `单个文件最大 ${sizeText(maxBytes)}`;
+  }
+}
+
 async function login(value) {
   const v = String(value || '').trim();
-  if (!v) return (($('gateErr').textContent = '请输入密码'), false);
+  if (!v) { $('gateErr').textContent = '请输入密码'; return false; }
   const old = pwd;
   pwd = v;
   try {
-    await call({ action: 'file-list' });
+    await call({ action: 'drive-status' });
     localStorage.setItem('admin_pwd', v);
     $('gateErr').textContent = '';
     showApp(true);
-    await loadFiles();
+    await initData();
     return true;
   } catch (e) {
     pwd = old;
     $('gateErr').textContent = e.message || '密码错误';
     return false;
   }
+}
+
+async function initData() {
+  mode = 'github';
+  drive = null;
+  try {
+    const st = await call({ action: 'drive-status' });
+    if (st.configured) {
+      drive = await call({ action: 'drive-token' });
+      drive.fetchedAt = Date.now();
+      mode = 'drive';
+    }
+  } catch (e) {
+    toast('Google Drive 暂不可用，回退到仓库存储：' + e.message, false);
+    mode = 'github';
+  }
+  updateModeUI();
+  await loadFiles();
+}
+
+async function refreshDriveToken() {
+  if (drive && Date.now() - drive.fetchedAt < 50 * 60 * 1000) return drive;
+  drive = await call({ action: 'drive-token' });
+  drive.fetchedAt = Date.now();
+  return drive;
 }
 
 $('gateForm').addEventListener('submit', (e) => {
@@ -233,42 +273,96 @@ $('logout').addEventListener('click', () => {
   $('pwd').value = '';
 });
 
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+}
+
+async function gfetch(url, opts = {}, retry = true) {
+  const d = await refreshDriveToken();
+  const res = await fetch(url, {
+    ...opts,
+    headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + d.accessToken },
+  });
+  if (res.status === 401 && retry) {
+    drive = null;
+    return gfetch(url, opts, false);
+  }
+  return res;
+}
+
 async function loadFiles() {
   $('list').innerHTML = '<div class="empty">读取中…</div>';
   try {
-    const d = await call({ action: 'file-list' });
-    files = Array.isArray(d.files) ? d.files : [];
-    if (d.maxBytes) {
-      maxBytes = d.maxBytes;
-      $('dropHint').textContent = `单个文件最大 ${d.maxText || sizeText(d.maxBytes)}`;
-    }
+    if (mode === 'drive') await loadDrive();
+    else await loadGithub();
     render();
   } catch (e) {
     $('list').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`;
   }
 }
 
+async function loadDrive() {
+  const d = await refreshDriveToken();
+  const q = encodeURIComponent(`'${d.folderId}' in parents and trashed=false`);
+  const res = await gfetch(
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,size,createdTime,mimeType)&orderBy=createdTime desc&pageSize=200&spaces=drive`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error?.message || `Google Drive ${res.status}`);
+  items = (data.files || []).map((f) => {
+    const dt = new Date(f.createdTime || Date.now());
+    return {
+      key: 'drive:' + f.id,
+      source: 'drive',
+      id: f.id,
+      name: f.name,
+      size: Number(f.size || 0),
+      ext: (String(f.name).split('.').pop() || '').toLowerCase(),
+      group: `${dt.getFullYear()}/${String(dt.getMonth() + 1).padStart(2, '0')}`,
+      sub: `${sizeText(f.size)} · ${fmtDate(f.createdTime)}`,
+    };
+  });
+}
+
+async function loadGithub() {
+  const d = await call({ action: 'file-list' });
+  if (d.maxBytes) maxBytes = d.maxBytes;
+  items = (d.files || []).map((f) => ({
+    key: 'gh:' + f.path,
+    source: 'github',
+    path: f.path,
+    name: f.name,
+    size: f.size,
+    ext: f.ext,
+    group: f.dir,
+    sub: `${f.sizeText} · ${f.rel}`,
+  }));
+}
+
 function render() {
-  $('count').textContent = files.length ? `共 ${files.length} 个` : '';
-  if (!files.length) {
+  $('count').textContent = items.length ? `共 ${items.length} 个` : '';
+  if (!items.length) {
     $('list').innerHTML = '<div class="empty">还没有文件，把第一个拖进上面的框里吧</div>';
     return;
   }
   const groups = new Map();
-  for (const f of files) {
-    if (!groups.has(f.dir)) groups.set(f.dir, []);
-    groups.get(f.dir).push(f);
+  for (const it of items) {
+    if (!groups.has(it.group)) groups.set(it.group, []);
+    groups.get(it.group).push(it);
   }
   const html = [...groups.entries()]
-    .map(([dir, list]) => {
-      const items = list
+    .map(([group, list]) => {
+      const rows = list
         .map(
-          (f) => `
-        <div class="fitem" data-path="${esc(f.path)}">
-          <div class="ext">${esc(f.ext || 'file')}</div>
+          (it) => `
+        <div class="fitem" data-key="${esc(it.key)}">
+          <div class="ext">${esc(it.ext || 'file')}</div>
           <div class="meta">
-            <div class="nm" title="${esc(f.name)}">${esc(f.name)}</div>
-            <div class="sub">${esc(f.sizeText)} · ${esc(f.rel)}</div>
+            <div class="nm" title="${esc(it.name)}">${esc(it.name)}</div>
+            <div class="sub">${esc(it.sub)}${it.source === 'drive' ? ' · Drive' : ''}</div>
           </div>
           <div class="acts">
             <button class="btn sm ghost" data-act="dl">下载</button>
@@ -277,35 +371,63 @@ function render() {
         </div>`
         )
         .join('');
-      return `<div class="grp"><div class="grp-t">${esc(dir || '根目录')}</div>${items}</div>`;
+      return `<div class="grp"><div class="grp-t">${esc(group || '根目录')}</div>${rows}</div>`;
     })
     .join('');
   $('list').innerHTML = html;
+}
+
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name || 'file';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 8000);
+}
+
+async function downloadItem(it) {
+  if (it.source === 'drive') {
+    const d = await refreshDriveToken();
+    if (it.size && it.size > 60 * 1024 * 1024) {
+      const url = `https://www.googleapis.com/drive/v3/files/${it.id}?alt=media&access_token=${encodeURIComponent(d.accessToken)}`;
+      window.open(url, '_blank');
+      return;
+    }
+    const res = await gfetch(`https://www.googleapis.com/drive/v3/files/${it.id}?alt=media`);
+    if (!res.ok) throw new Error('下载失败（' + res.status + '）');
+    saveBlob(await res.blob(), it.name);
+    return;
+  }
+  const res = await call({ action: 'file-download', path: it.path });
+  saveBlob(await res.blob(), it.name);
+}
+
+async function deleteItem(it) {
+  if (it.source === 'drive') {
+    const res = await gfetch(`https://www.googleapis.com/drive/v3/files/${it.id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('删除失败（' + res.status + '）');
+    return;
+  }
+  await call({ action: 'file-delete', path: it.path });
 }
 
 $('list').addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   const row = btn.closest('.fitem');
-  const path = row?.dataset.path;
-  if (!path) return;
-  const f = files.find((x) => x.path === path);
+  const it = items.find((x) => x.key === row?.dataset.key);
+  if (!it) return;
   btn.disabled = true;
   try {
     if (btn.dataset.act === 'dl') {
-      const res = await call({ action: 'file-download', path });
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = f?.name || 'file';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      toast('开始下载：' + it.name);
+      await downloadItem(it);
     } else if (btn.dataset.act === 'del') {
-      if (!confirm(`删除「${f?.name || path}」？文件会从仓库移除，不能撤销。`)) return;
-      await call({ action: 'file-delete', path });
+      if (!confirm(`删除「${it.name}」？${it.source === 'drive' ? '文件会从你的 Google Drive 删除' : '文件会从仓库移除'}，不能撤销。`)) return;
+      await deleteItem(it);
       toast('已删除');
       await loadFiles();
     }
@@ -328,11 +450,60 @@ function readBase64(file) {
 function itemNode(file) {
   const el = document.createElement('div');
   el.className = 'qitem';
-  el.innerHTML = `
-    <div class="nm">${esc(file.name)}</div>
-    <div class="st">${sizeText(file.size)}</div>
-    <div class="bar"><i></i></div>`;
+  el.innerHTML = `<div class="nm">${esc(file.name)}</div><div class="st">${sizeText(file.size)}</div><div class="bar"><i></i></div>`;
   return el;
+}
+
+async function uploadDriveFile(file, onProgress) {
+  const d = await refreshDriveToken();
+  const init = await gfetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id,name,size', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=UTF-8',
+      'X-Upload-Content-Type': file.type || 'application/octet-stream',
+      'X-Upload-Content-Length': String(file.size),
+    },
+    body: JSON.stringify({ name: file.name, parents: [d.folderId] }),
+  });
+  if (!init.ok) {
+    const detail = await init.text().catch(() => '');
+    throw new Error('创建上传会话失败（' + init.status + '）' + (detail ? ' ' + detail.slice(0, 120) : ''));
+  }
+  const session = init.headers.get('x-goog-upload-url') || init.headers.get('location');
+  if (!session) throw new Error('没有拿到上传地址');
+  await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', session, true);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('上传失败（' + xhr.status + '）')));
+    xhr.onerror = () => reject(new Error('网络中断，可以重新拖入同一个文件重试'));
+    xhr.send(file);
+  });
+}
+
+async function uploadGitHubFile(file, onProgress) {
+  const base64 = await readBase64(file);
+  await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', API);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.setRequestHeader('Authorization', 'Bearer ' + pwd);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      let d = {};
+      try { d = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status >= 200 && xhr.status < 300 && d.ok) return resolve(d);
+      if (xhr.status === 413) return reject(new Error('文件太大，服务器拒绝了这次请求'));
+      reject(new Error(d.error || '上传失败（' + xhr.status + '）'));
+    };
+    xhr.onerror = () => reject(new Error('网络中断'));
+    xhr.send(JSON.stringify({ action: 'file-upload', name: file.name, base64 }));
+  });
 }
 
 async function uploadFiles(fileList) {
@@ -344,37 +515,24 @@ async function uploadFiles(fileList) {
     const st = item.querySelector('.st');
     const bar = item.querySelector('.bar i');
 
-    if (file.size > maxBytes) {
+    if (mode !== 'drive' && file.size > maxBytes) {
       item.classList.add('bad');
       st.textContent = '超过上限，已跳过';
       continue;
     }
 
-    st.textContent = '读取中…';
     try {
-      const base64 = await readBase64(file);
-      st.textContent = '上传中…';
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', API);
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('Authorization', 'Bearer ' + pwd);
-        xhr.upload.onprogress = (e) => {
-          if (!e.lengthComputable) return;
-          const pct = Math.round((e.loaded / e.total) * 100);
-          bar.style.width = pct + '%';
-          st.textContent = pct + '%';
-        };
-        xhr.onload = () => {
-          let d = {};
-          try { d = JSON.parse(xhr.responseText); } catch {}
-          if (xhr.status >= 200 && xhr.status < 300 && d.ok) return resolve(d);
-          if (xhr.status === 413) return reject(new Error('文件太大，服务器拒绝了这次请求'));
-          reject(new Error(d.error || '上传失败（' + xhr.status + '）'));
-        };
-        xhr.onerror = () => reject(new Error('网络中断'));
-        xhr.send(JSON.stringify({ action: 'file-upload', name: file.name, base64 }));
-      });
+      const setPct = (p) => {
+        bar.style.width = p + '%';
+        st.textContent = p + '%';
+      };
+      if (mode === 'drive') {
+        st.textContent = '准备中…';
+        await uploadDriveFile(file, setPct);
+      } else {
+        st.textContent = '读取中…';
+        await uploadGitHubFile(file, setPct);
+      }
       bar.style.width = '100%';
       st.textContent = '已上传';
       item.style.transition = 'opacity .4s';
@@ -406,23 +564,14 @@ $('picker').addEventListener('change', (e) => {
 });
 $('refresh').addEventListener('click', loadFiles);
 
-// 有缓存密码就先试一次，失败再显示登录框
 if (pwd) {
   showApp(true);
-  call({ action: 'file-list' })
-    .then((d) => {
-      files = Array.isArray(d.files) ? d.files : [];
-      if (d.maxBytes) {
-        maxBytes = d.maxBytes;
-        $('dropHint').textContent = `单个文件最大 ${d.maxText || sizeText(d.maxBytes)}`;
-      }
-      render();
-    })
-    .catch(() => showApp(false));
+  initData().catch(() => showApp(false));
 } else {
   showApp(false);
   setTimeout(() => $('pwd').focus(), 60);
 }
+
 </script>
 </body>
 </html>

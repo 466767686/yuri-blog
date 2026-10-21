@@ -485,6 +485,69 @@ async function deleteStoredFile(path: string) {
   return { ok: true };
 }
 
+// ───────────────────────── Google Drive（文件柜大文件通道） ─────────────────────────
+
+const G_CLIENT_ID = String(import.meta.env.GOOGLE_CLIENT_ID || '');
+const G_CLIENT_SECRET = String(import.meta.env.GOOGLE_CLIENT_SECRET || '');
+const G_REFRESH = String(import.meta.env.GOOGLE_REFRESH_TOKEN || '');
+const G_FOLDER_NAME = 'Yuri文件柜';
+
+let gFolderCache: string | null = null;
+
+async function gAccessToken() {
+  if (!G_CLIENT_ID || !G_CLIENT_SECRET || !G_REFRESH) {
+    throw new Error('还没配置 Google Drive，请先访问 /api/drive-auth 完成授权');
+  }
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: G_CLIENT_ID,
+      client_secret: G_CLIENT_SECRET,
+      refresh_token: G_REFRESH,
+      grant_type: 'refresh_token',
+    }),
+  });
+  const data: any = await res.json().catch(() => ({}));
+  if (!res.ok || !data.access_token) {
+    throw new Error(data?.error_description || '刷新 Google 令牌失败，授权可能已失效，请重新授权');
+  }
+  return String(data.access_token);
+}
+
+async function gApi(token: string, path: string, init: any = {}) {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/${path}`, {
+    ...init,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init.headers || {}) },
+  });
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) throw new Error(data?.error?.message || `Google API ${res.status}`);
+  return data;
+}
+
+async function gEnsureFolder(token: string) {
+  if (gFolderCache) return gFolderCache;
+  const q = encodeURIComponent(`name='${G_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`);
+  const list = await gApi(token, `files?q=${q}&fields=files(id,name)&pageSize=5`);
+  const found = list?.files?.[0]?.id;
+  if (found) {
+    gFolderCache = String(found);
+    return gFolderCache;
+  }
+  const created = await gApi(token, 'files', {
+    method: 'POST',
+    body: JSON.stringify({ name: G_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' }),
+  });
+  gFolderCache = String(created.id);
+  return gFolderCache;
+}
+
 // ───────────────────────── 路由 ─────────────────────────
 
 export async function OPTIONS() {
@@ -566,6 +629,23 @@ export async function POST({ request }: { request: Request }) {
     if (action === 'upload') {
       const r = await uploadImage(String(q.name || ''), String(q.dataUrl || ''));
       return json({ ok: true, ...r });
+    }
+
+    if (action === 'drive-status') {
+      return json({ ok: true, configured: !!(G_CLIENT_ID && G_CLIENT_SECRET && G_REFRESH) });
+    }
+
+    if (action === 'drive-token') {
+      const token = await gAccessToken();
+      const folderId = await gEnsureFolder(token);
+      let quota: any = null;
+      try {
+        const about = await gApi(token, 'about?fields=storageQuota');
+        quota = about?.storageQuota || null;
+      } catch {
+        /* 配额信息拿不到不影响上传 */
+      }
+      return json({ ok: true, accessToken: token, folderId, folderName: G_FOLDER_NAME, quota });
     }
 
     if (action === 'file-list') {
