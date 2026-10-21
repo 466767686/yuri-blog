@@ -356,6 +356,135 @@ async function aiAssist(kind: string, payload: any) {
     .replace(/^["'「【]+|["'」】]+$/g, '');
 }
 
+// ───────────────────────── 文件柜（私有存储，需密码） ─────────────────────────
+
+const FILE_DIR = 'storage/files';
+// Vercel 函数请求体上限 4.5MB，base64 会膨胀约 4/3，留出余量
+const MAX_FILE_BYTES = 3.5 * 1024 * 1024;
+
+const MIME_BY_EXT: Record<string, string> = {
+  pdf: 'application/pdf',
+  zip: 'application/zip',
+  rar: 'application/vnd.rar',
+  '7z': 'application/x-7z-compressed',
+  txt: 'text/plain; charset=utf-8',
+  md: 'text/markdown; charset=utf-8',
+  csv: 'text/csv; charset=utf-8',
+  json: 'application/json',
+  mp3: 'audio/mpeg',
+  wav: 'audio/wav',
+  m4a: 'audio/mp4',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  svg: 'image/svg+xml',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  ppt: 'application/vnd.ms-powerpoint',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  epub: 'application/epub+zip',
+  apk: 'application/vnd.android.package-archive',
+};
+
+function humanSize(n: number) {
+  if (!n) return '0 B';
+  const unit = ['B', 'KB', 'MB', 'GB'];
+  let v = Number(n);
+  let i = 0;
+  while (v >= 1024 && i < unit.length - 1) {
+    v /= 1024;
+    i += 1;
+  }
+  return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${unit[i]}`;
+}
+
+function splitFileName(name: string) {
+  const raw =
+    String(name || 'file')
+      .replace(/\\/g, '/')
+      .split('/')
+      .pop() || 'file';
+  const m = raw.match(/\.([A-Za-z0-9]{1,8})$/);
+  const ext = m ? m[1].toLowerCase() : '';
+  const stem =
+    raw
+      .replace(/\.[^.]+$/, '')
+      .replace(/[^\w\u4e00-\u9fff-]/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 60) || 'file';
+  return { stem, ext };
+}
+
+/** 列出文件柜内所有文件（Git Trees 递归，过滤 storage/files 前缀）。 */
+async function listFiles() {
+  const tree = await gh(`git/trees/${BRANCH}?recursive=1`, {}, true);
+  const prefix = `${FILE_DIR}/`;
+  const files = (tree?.tree || [])
+    .filter((n: any) => n.type === 'blob' && String(n.path).startsWith(prefix))
+    .map((n: any) => {
+      const path = String(n.path);
+      const rel = path.slice(prefix.length);
+      const base = rel.split('/').pop() || rel;
+      const ext = (base.split('.').pop() || '').toLowerCase();
+      return {
+        path,
+        name: base,
+        rel,
+        dir: rel.split('/').slice(0, -1).join('/'),
+        ext,
+        size: n.size || 0,
+        sizeText: humanSize(n.size || 0),
+      };
+    });
+  return files.sort((a: any, b: any) => (a.path < b.path ? 1 : -1));
+}
+
+/** 上传一个文件（base64，不含 data: 前缀）。 */
+async function uploadFile(name: string, base64: string) {
+  const clean = String(base64 || '').replace(/\s/g, '');
+  if (!clean) throw new Error('文件内容为空');
+  const bytes = Math.floor(clean.length * 0.75);
+  if (bytes > MAX_FILE_BYTES) {
+    throw new Error(`文件 ${humanSize(bytes)} 超过单次上限 ${humanSize(MAX_FILE_BYTES)}，请压缩或拆分后再传`);
+  }
+
+  const { stem, ext } = splitFileName(name);
+  const now = new Date();
+  const ym = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const filename = `${stem}-${Date.now().toString(36)}${ext ? `.${ext}` : ''}`;
+  const path = `${FILE_DIR}/${ym}/${filename}`;
+
+  await writeBinary(path, clean, `file: ${filename}`);
+  return { ok: true, path, name: filename, dir: ym, bytes, sizeText: humanSize(bytes), ext };
+}
+
+/** 读取文件柜里的二进制文件。 */
+async function readBinary(path: string) {
+  if (!path.startsWith(`${FILE_DIR}/`)) throw new Error('路径不在文件柜内');
+  const url = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${path}?ref=${BRANCH}`;
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${import.meta.env.GH_TOKEN}`,
+      Accept: 'application/vnd.github.raw',
+      'X-GitHub-Api-Version': '2022-11-28',
+    },
+  });
+  if (!res.ok) throw new Error(res.status === 404 ? '文件不存在' : `读取失败（GitHub ${res.status}）`);
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+async function deleteStoredFile(path: string) {
+  if (!path.startsWith(`${FILE_DIR}/`)) throw new Error('路径不在文件柜内');
+  await removeFile(path, `file delete: ${path.split('/').pop()}`);
+  return { ok: true };
+}
+
 // ───────────────────────── 路由 ─────────────────────────
 
 export async function OPTIONS() {
@@ -437,6 +566,33 @@ export async function POST({ request }: { request: Request }) {
     if (action === 'upload') {
       const r = await uploadImage(String(q.name || ''), String(q.dataUrl || ''));
       return json({ ok: true, ...r });
+    }
+
+    if (action === 'file-list') {
+      return json({ ok: true, files: await listFiles(), maxBytes: MAX_FILE_BYTES, maxText: humanSize(MAX_FILE_BYTES) });
+    }
+
+    if (action === 'file-upload') {
+      return json(await uploadFile(String(q.name || ''), String(q.base64 || '')));
+    }
+
+    if (action === 'file-delete') {
+      if (!q.path) return json({ ok: false, error: '缺少 path' }, 400);
+      return json(await deleteStoredFile(String(q.path)));
+    }
+
+    if (action === 'file-download') {
+      const path = String(q.path || '');
+      const data = await readBinary(path);
+      const name = path.split('/').pop() || 'file';
+      const ext = (name.split('.').pop() || '').toLowerCase();
+      return new Response(data, {
+        headers: {
+          'Content-Type': MIME_BY_EXT[ext] || 'application/octet-stream',
+          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
+          'Cache-Control': 'no-store',
+        },
+      });
     }
 
     if (action === 'ai') {

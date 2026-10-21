@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex, nofollow">
+<title>YuriのBlog · 文件柜</title>
+<style>
+:root{
+  --brand:#e9536a; --brand-soft:#f9a8b8; --brand-deep:#c73e54;
+  --bg:#faf7f8; --card:#fff; --ink:#241a1e; --muted:#8b7d83;
+  --line:#eee2e6; --field:#fff; --radius:12px;
+  --shadow:0 1px 2px rgba(60,30,40,.05),0 8px 24px -16px rgba(60,30,40,.18);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#171114; --card:#1f171b; --ink:#f2e9ec; --muted:#a2909a;
+    --line:#2e2429; --field:#241b20; --brand-soft:#8a4a58;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.6);
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;
+  min-height:100dvh;
+}
+button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
+input{font:inherit;color:inherit}
+.hide{display:none!important}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 16px;border-radius:9px;background:var(--brand);color:#fff;
+  font-size:14px;font-weight:500;white-space:nowrap;
+  transition:transform .16s cubic-bezier(.16,1,.3,1),opacity .16s;
+}
+.btn:active{transform:scale(.96)}
+.btn.ghost{background:var(--field);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.danger{background:#ff3b30}
+.btn:disabled{opacity:.45;pointer-events:none}
+.btn.sm{padding:6px 11px;font-size:13px;border-radius:8px}
+.gate{display:flex;align-items:center;justify-content:center;min-height:100dvh;padding:24px}
+.gate .card{width:100%;max-width:340px;background:var(--card);border-radius:16px;padding:28px 24px;box-shadow:var(--shadow)}
+.gate h1{font-size:19px;font-weight:600;margin-bottom:4px}
+.gate p{font-size:13px;color:var(--muted);margin-bottom:20px}
+.in{
+  width:100%;padding:10px 13px;border-radius:9px;border:1px solid var(--line);
+  background:var(--field);font-size:14px;outline:none;transition:border-color .16s;
+}
+.in:focus{border-color:var(--brand-soft)}
+.gate .in{margin-bottom:12px}
+.gate .btn{width:100%}
+.err-tip{color:#e5484d;font-size:12.5px;min-height:18px;margin-top:8px}
+
+.wrap{max-width:860px;margin:0 auto;padding:20px 16px 56px}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap}
+.top h1{font-size:20px;font-weight:600;letter-spacing:.5px}
+.top .sub{font-size:12.5px;color:var(--muted)}
+.top .sp{flex:1}
+.link{font-size:13px;color:var(--brand);text-decoration:none}
+
+.drop{
+  border:1.5px dashed var(--brand-soft);border-radius:14px;background:var(--card);
+  padding:30px 18px;text-align:center;cursor:pointer;
+  transition:background .18s,border-color .18s,transform .18s;
+}
+.drop:hover{background:color-mix(in srgb,var(--brand-soft) 10%,var(--card))}
+.drop.on{background:color-mix(in srgb,var(--brand-soft) 18%,var(--card));border-color:var(--brand);transform:scale(.995)}
+.drop .big{font-size:15px;font-weight:600;margin-bottom:4px}
+.drop .hint{font-size:12.5px;color:var(--muted)}
+.drop .icon{font-size:26px;margin-bottom:8px;opacity:.85}
+
+.queue{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+.qitem{
+  display:flex;align-items:center;gap:10px;background:var(--card);border-radius:10px;
+  padding:10px 12px;box-shadow:inset 0 0 0 1px var(--line);font-size:13.5px;
+}
+.qitem .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qitem .st{font-size:12px;color:var(--muted);white-space:nowrap}
+.qitem .bar{height:3px;border-radius:2px;background:var(--line);overflow:hidden;width:64px;flex:0 0 64px}
+.qitem .bar i{display:block;height:100%;width:0;background:var(--brand);transition:width .18s}
+.qitem.bad .st{color:#e5484d}
+
+.list-head{display:flex;align-items:center;gap:8px;margin:26px 0 10px}
+.list-head h2{font-size:15px;font-weight:600}
+.list-head .count{font-size:12.5px;color:var(--muted)}
+.list-head .sp{flex:1}
+.grp{margin-bottom:16px}
+.grp-t{font-size:12px;color:var(--muted);margin:0 2px 6px;letter-spacing:.4px}
+.fitem{
+  display:flex;align-items:center;gap:11px;background:var(--card);border-radius:11px;
+  padding:11px 13px;margin-bottom:7px;box-shadow:var(--shadow);
+}
+.fitem .ext{
+  width:36px;height:36px;flex:0 0 36px;border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;
+  background:color-mix(in srgb,var(--brand-soft) 24%,var(--card));color:var(--brand-deep);
+}
+.fitem .meta{flex:1;min-width:0}
+.fitem .nm{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fitem .sub{font-size:12px;color:var(--muted)}
+.fitem .acts{display:flex;gap:6px;flex:0 0 auto}
+.empty{text-align:center;color:var(--muted);font-size:13.5px;padding:28px 0}
+.toast{
+  position:fixed;left:50%;bottom:26px;transform:translate(-50%,16px);opacity:0;pointer-events:none;
+  background:#2a2126;color:#fff;font-size:13.5px;padding:9px 16px;border-radius:999px;
+  transition:opacity .2s,transform .2s;max-width:88vw;
+}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+.toast.err{background:#c0392b}
+@media (max-width:520px){
+  .fitem{flex-wrap:wrap}
+  .fitem .acts{width:100%;justify-content:flex-end}
+  .qitem .bar{display:none}
+}
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <form class="card" id="gateForm" autocomplete="on">
+    <h1>文件柜</h1>
+    <p>输入管理密码后可以上传、下载和整理文件。</p>
+    <input class="in" type="password" id="pwd" placeholder="管理密码" autocomplete="current-password">
+    <button class="btn" type="submit" id="loginBtn">进入</button>
+    <div class="err-tip" id="gateErr"></div>
+  </form>
+</div>
+
+<div class="wrap hide" id="app">
+  <div class="top">
+    <div>
+      <h1>文件柜</h1>
+      <div class="sub" id="topSub">仅自己可见，下载需要密码</div>
+    </div>
+    <div class="sp"></div>
+    <a class="link" href="/admin/">写作后台</a>
+    <button class="btn sm ghost" id="logout">退出</button>
+  </div>
+
+  <div class="drop" id="drop">
+    <div class="icon">☁️</div>
+    <div class="big">点击选择文件，或把文件拖到这里</div>
+    <div class="hint" id="dropHint">单个文件最大 3.5 MB</div>
+    <input type="file" id="picker" multiple class="hide">
+  </div>
+  <div class="queue" id="queue"></div>
+
+  <div class="list-head">
+    <h2>已上传</h2>
+    <span class="count" id="count"></span>
+    <div class="sp"></div>
+    <button class="btn sm ghost" id="refresh">刷新</button>
+  </div>
+  <div id="list"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+const API = '/api/admin';
+let pwd = localStorage.getItem('admin_pwd') || '';
+let maxBytes = 3.5 * 1024 * 1024;
+let files = [];
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+function toast(msg, ok = true) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = ok ? 'on' : 'on err';
+  clearTimeout(t._t);
+  t._t = setTimeout(() => (t.className = ''), 3000);
+}
+
+function sizeText(n) {
+  if (!n) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB'];
+  let v = n, i = 0;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i += 1; }
+  return `${v < 10 && i > 0 ? v.toFixed(1) : Math.round(v)} ${u[i]}`;
+}
+
+async function call(payload) {
+  const res = await fetch(API, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + pwd },
+    body: JSON.stringify(payload),
+  });
+  if (res.headers.get('content-type')?.includes('application/json')) {
+    const data = await res.json().catch(() => ({ ok: false, error: '响应解析失败' }));
+    if (!data.ok) throw new Error(data.error || '请求失败');
+    return data;
+  }
+  if (!res.ok) throw new Error('请求失败（' + res.status + '）');
+  return res;
+}
+
+function showApp(on) {
+  $('gate').classList.toggle('hide', on);
+  $('app').classList.toggle('hide', !on);
+}
+
+async function login(value) {
+  const v = String(value || '').trim();
+  if (!v) return (($('gateErr').textContent = '请输入密码'), false);
+  const old = pwd;
+  pwd = v;
+  try {
+    await call({ action: 'file-list' });
+    localStorage.setItem('admin_pwd', v);
+    $('gateErr').textContent = '';
+    showApp(true);
+    await loadFiles();
+    return true;
+  } catch (e) {
+    pwd = old;
+    $('gateErr').textContent = e.message || '密码错误';
+    return false;
+  }
+}
+
+$('gateForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  $('loginBtn').disabled = true;
+  login($('pwd').value).finally(() => ($('loginBtn').disabled = false));
+});
+
+$('logout').addEventListener('click', () => {
+  localStorage.removeItem('admin_pwd');
+  pwd = '';
+  showApp(false);
+  $('pwd').value = '';
+});
+
+async function loadFiles() {
+  $('list').innerHTML = '<div class="empty">读取中…</div>';
+  try {
+    const d = await call({ action: 'file-list' });
+    files = Array.isArray(d.files) ? d.files : [];
+    if (d.maxBytes) {
+      maxBytes = d.maxBytes;
+      $('dropHint').textContent = `单个文件最大 ${d.maxText || sizeText(d.maxBytes)}`;
+    }
+    render();
+  } catch (e) {
+    $('list').innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`;
+  }
+}
+
+function render() {
+  $('count').textContent = files.length ? `共 ${files.length} 个` : '';
+  if (!files.length) {
+    $('list').innerHTML = '<div class="empty">还没有文件，把第一个拖进上面的框里吧</div>';
+    return;
+  }
+  const groups = new Map();
+  for (const f of files) {
+    if (!groups.has(f.dir)) groups.set(f.dir, []);
+    groups.get(f.dir).push(f);
+  }
+  const html = [...groups.entries()]
+    .map(([dir, list]) => {
+      const items = list
+        .map(
+          (f) => `
+        <div class="fitem" data-path="${esc(f.path)}">
+          <div class="ext">${esc(f.ext || 'file')}</div>
+          <div class="meta">
+            <div class="nm" title="${esc(f.name)}">${esc(f.name)}</div>
+            <div class="sub">${esc(f.sizeText)} · ${esc(f.rel)}</div>
+          </div>
+          <div class="acts">
+            <button class="btn sm ghost" data-act="dl">下载</button>
+            <button class="btn sm danger" data-act="del">删除</button>
+          </div>
+        </div>`
+        )
+        .join('');
+      return `<div class="grp"><div class="grp-t">${esc(dir || '根目录')}</div>${items}</div>`;
+    })
+    .join('');
+  $('list').innerHTML = html;
+}
+
+$('list').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const row = btn.closest('.fitem');
+  const path = row?.dataset.path;
+  if (!path) return;
+  const f = files.find((x) => x.path === path);
+  btn.disabled = true;
+  try {
+    if (btn.dataset.act === 'dl') {
+      const res = await call({ action: 'file-download', path });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = f?.name || 'file';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    } else if (btn.dataset.act === 'del') {
+      if (!confirm(`删除「${f?.name || path}」？文件会从仓库移除，不能撤销。`)) return;
+      await call({ action: 'file-delete', path });
+      toast('已删除');
+      await loadFiles();
+    }
+  } catch (err) {
+    toast(err.message || '操作失败', false);
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function readBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || '').split(',')[1] || '');
+    r.onerror = () => reject(new Error('读取本地文件失败'));
+    r.readAsDataURL(file);
+  });
+}
+
+function itemNode(file) {
+  const el = document.createElement('div');
+  el.className = 'qitem';
+  el.innerHTML = `
+    <div class="nm">${esc(file.name)}</div>
+    <div class="st">${sizeText(file.size)}</div>
+    <div class="bar"><i></i></div>`;
+  return el;
+}
+
+async function uploadFiles(fileList) {
+  const arr = [...fileList].filter(Boolean);
+  if (!arr.length) return;
+  for (const file of arr) {
+    const item = itemNode(file);
+    $('queue').appendChild(item);
+    const st = item.querySelector('.st');
+    const bar = item.querySelector('.bar i');
+
+    if (file.size > maxBytes) {
+      item.classList.add('bad');
+      st.textContent = '超过上限，已跳过';
+      continue;
+    }
+
+    st.textContent = '读取中…';
+    try {
+      const base64 = await readBase64(file);
+      st.textContent = '上传中…';
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', API);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Authorization', 'Bearer ' + pwd);
+        xhr.upload.onprogress = (e) => {
+          if (!e.lengthComputable) return;
+          const pct = Math.round((e.loaded / e.total) * 100);
+          bar.style.width = pct + '%';
+          st.textContent = pct + '%';
+        };
+        xhr.onload = () => {
+          let d = {};
+          try { d = JSON.parse(xhr.responseText); } catch {}
+          if (xhr.status >= 200 && xhr.status < 300 && d.ok) return resolve(d);
+          if (xhr.status === 413) return reject(new Error('文件太大，服务器拒绝了这次请求'));
+          reject(new Error(d.error || '上传失败（' + xhr.status + '）'));
+        };
+        xhr.onerror = () => reject(new Error('网络中断'));
+        xhr.send(JSON.stringify({ action: 'file-upload', name: file.name, base64 }));
+      });
+      bar.style.width = '100%';
+      st.textContent = '已上传';
+      item.style.transition = 'opacity .4s';
+      setTimeout(() => { item.style.opacity = '0'; }, 1400);
+      setTimeout(() => item.remove(), 2000);
+    } catch (e) {
+      item.classList.add('bad');
+      st.textContent = e.message || '失败';
+    }
+  }
+  await loadFiles();
+}
+
+function bindDrop(el, onFiles) {
+  el.addEventListener('click', () => $('picker').click());
+  el.addEventListener('dragover', (e) => { e.preventDefault(); el.classList.add('on'); });
+  el.addEventListener('dragleave', () => el.classList.remove('on'));
+  el.addEventListener('drop', (e) => {
+    e.preventDefault();
+    el.classList.remove('on');
+    onFiles(e.dataTransfer.files);
+  });
+}
+
+bindDrop($('drop'), uploadFiles);
+$('picker').addEventListener('change', (e) => {
+  uploadFiles(e.target.files);
+  e.target.value = '';
+});
+$('refresh').addEventListener('click', loadFiles);
+
+// 有缓存密码就先试一次，失败再显示登录框
+if (pwd) {
+  showApp(true);
+  call({ action: 'file-list' })
+    .then((d) => {
+      files = Array.isArray(d.files) ? d.files : [];
+      if (d.maxBytes) {
+        maxBytes = d.maxBytes;
+        $('dropHint').textContent = `单个文件最大 ${d.maxText || sizeText(d.maxBytes)}`;
+      }
+      render();
+    })
+    .catch(() => showApp(false));
+} else {
+  showApp(false);
+  setTimeout(() => $('pwd').focus(), 60);
+}
+</script>
+</body>
+</html>
