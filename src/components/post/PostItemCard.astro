@@ -1,4 +1,6 @@
 ---
+import fs from 'node:fs';
+import path from 'node:path';
 // 导入所需的库和类型
 import { Badge } from '@components/ui/badge';
 import { Button } from '@components/ui/button';
@@ -44,6 +46,11 @@ const postDescription = description ?? '';
 // 获取 LQIP 样式用于图片占位符
 const lqipProps = getLqipProps(finalCover);
 
+const thumb = coverThumb(finalCover);
+const fullAbs = finalCover.startsWith('/img/') ? path.join(process.cwd(), 'public', finalCover.replace(/^\//, '')) : '';
+const fullWidth = fullAbs && fullAbs.endsWith('.webp') ? webpWidth(fullAbs) : 0;
+const coverSrcset = thumb.url ? `${thumb.url} ${thumb.width}w, ${finalCover}${fullWidth ? ` ${fullWidth}w` : ''}` : undefined;
+
 // Stagger padding amounts for uniform position mode (following diagonal edge)
 // Only applied when images are on left, where the diagonal faces the content
 const staggerAmounts = ['pl-0', 'pl-2', 'pl-4', 'pl-6'] as const;
@@ -61,6 +68,29 @@ function getStaggerPadding(rowIndex: number): string {
 
 const pageStatsConfig = createArticleStatsConfig(href);
 const titleMorph = postTitleMorphName(slug);
+
+/** 读 webp 头部拿真实宽度，用于生成准确的 srcset 描述符 */
+function webpWidth(file: string) {
+  try {
+    const b = fs.readFileSync(file).subarray(0, 32);
+    const tag = b.toString('ascii', 12, 16);
+    if (tag === 'VP8 ') return b.readUInt16LE(26) & 0x3fff;
+    if (tag === 'VP8L') return (b.readUInt32LE(21) & 0x3fff) + 1;
+    if (tag === 'VP8X') return b.readUIntLE(24, 3) + 1;
+  } catch {
+    /* 读不到就退化成不带宽度描述符 */
+  }
+  return 0;
+}
+
+/** 本地封面图对应的 400px 缩略图；外部地址或没有缩略图时返回空 */
+function coverThumb(src: string) {
+  if (!src.startsWith('/img/cover/') || !src.endsWith('.webp')) return { url: '', width: 0 };
+  const rel = src.replace('/img/cover/', '').replace(/\.webp$/, '-400.webp');
+  const abs = path.join(process.cwd(), 'public', 'img', 'cover', 'thumb', rel);
+  if (!fs.existsSync(abs)) return { url: '', width: 0 };
+  return { url: `/img/cover/thumb/${rel}`, width: 400 };
+}
 ---
 
 <div
@@ -81,7 +111,15 @@ const titleMorph = postTitleMorphName(slug);
       lqipProps.class,
     )}
   >
-    <img src={finalCover} loading="lazy" alt="" class="h-full w-full cursor-pointer object-cover" />
+    <img
+      src={finalCover}
+      srcset={coverSrcset}
+      sizes={thumb.url ? '(min-width: 768px) 800px, 50vw' : undefined}
+      loading="lazy"
+      decoding="async"
+      alt=""
+      class="h-full w-full cursor-pointer object-cover"
+    />
   </a>
   <div
     class={cn(
