@@ -388,17 +388,43 @@ function saveBlob(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 8000);
 }
 
+async function downloadDrive(it) {
+  const d = await refreshDriveToken();
+  if (it.size && it.size > 300 * 1024 * 1024) {
+    window.open(`https://drive.google.com/file/d/${it.id}/view`, '_blank');
+    toast('文件较大，已打开 Google Drive，请在那边点击下载');
+    return;
+  }
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${it.id}?alt=media`, {
+    headers: { Authorization: 'Bearer ' + d.accessToken },
+  });
+  if (res.status === 401) {
+    drive = null;
+    return downloadDrive(it);
+  }
+  if (!res.ok) throw new Error('下载失败（' + res.status + '）');
+  const total = Number(res.headers.get('content-length') || it.size || 0);
+  const reader = res.body.getReader();
+  const chunks = [];
+  let received = 0;
+  const t = $('toast');
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    if (total) {
+      t.textContent = `下载中 ${Math.round((received / total) * 100)}%`;
+      t.className = 'on';
+    }
+  }
+  t.className = '';
+  saveBlob(new Blob(chunks, { type: res.headers.get('content-type') || 'application/octet-stream' }), it.name);
+}
+
 async function downloadItem(it) {
   if (it.source === 'drive') {
-    const d = await refreshDriveToken();
-    if (it.size && it.size > 60 * 1024 * 1024) {
-      const url = `https://www.googleapis.com/drive/v3/files/${it.id}?alt=media&access_token=${encodeURIComponent(d.accessToken)}`;
-      window.open(url, '_blank');
-      return;
-    }
-    const res = await gfetch(`https://www.googleapis.com/drive/v3/files/${it.id}?alt=media`);
-    if (!res.ok) throw new Error('下载失败（' + res.status + '）');
-    saveBlob(await res.blob(), it.name);
+    await downloadDrive(it);
     return;
   }
   const res = await call({ action: 'file-download', path: it.path });
