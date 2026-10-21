@@ -43,7 +43,7 @@ export async function OPTIONS() {
 
 export async function POST({ request }: { request: Request }) {
   try {
-    const { messages } = await request.json();
+    const { messages, stream } = await request.json();
     if (!Array.isArray(messages) || messages.length === 0) {
       return json({ ok: false, error: '缺少消息' }, 400);
     }
@@ -52,20 +52,80 @@ export async function POST({ request }: { request: Request }) {
       role: m.role === 'assistant' ? 'assistant' : 'user',
       content: String(m.content || '').slice(0, 2000),
     }));
+
+    const payload: any = {
+      model: 'deepseek-chat',
+      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
+      temperature: 1.0,
+      max_tokens: 600,
+    };
+    if (stream === true) payload.stream = true;
+
     const res = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${import.meta.env.DEEPSEEK_API_KEY}` },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
-        temperature: 1.0,
-        max_tokens: 600,
-      }),
+      body: JSON.stringify(payload),
     });
-    const data = await res.json();
-    if (!res.ok) return json({ ok: false, error: data?.error?.message || `DeepSeek ${res.status}` }, 500);
-    const reply = data.choices?.[0]?.message?.content?.trim() || '';
-    return json({ ok: true, reply });
+
+    if (!res.ok) {
+      const data: any = await res.json().catch(() => ({}));
+      return json({ ok: false, error: data?.error?.message || `DeepSeek ${res.status}` }, 500);
+    }
+
+    if (stream !== true) {
+      const data: any = await res.json();
+      const reply = data.choices?.[0]?.message?.content?.trim() || '';
+      return json({ ok: true, reply });
+    }
+
+    const upstream = res.body;
+    if (!upstream) return json({ ok: false, error: '模型没有返回内容' }, 502);
+
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
+    const out = new ReadableStream({
+      async start(controller) {
+        const reader = upstream.getReader();
+        let buf = '';
+        const emit = (obj: any) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
+        try {
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop() || '';
+            for (const line of lines) {
+              const t = line.trim();
+              if (!t.startsWith('data:')) continue;
+              const raw = t.slice(5).trim();
+              if (!raw || raw === '[DONE]') continue;
+              try {
+                const j = JSON.parse(raw);
+                const delta = j.choices?.[0]?.delta?.content || '';
+                if (delta) emit({ delta });
+              } catch {
+                /* 跳过不完整分片 */
+              }
+            }
+          }
+          emit({ done: true });
+        } catch (e: any) {
+          emit({ error: e?.message || '流式中断' });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(out, {
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      },
+    });
   } catch (e: any) {
     return json({ ok: false, error: e.message || '服务器错误' }, 500);
   }
